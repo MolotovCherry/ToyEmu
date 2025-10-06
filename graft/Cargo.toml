@@ -1,0 +1,7 @@
+[package]
+name = "graft"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+customasm = "0.13.11"
