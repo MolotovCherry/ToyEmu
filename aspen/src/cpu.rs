@@ -1,21 +1,52 @@
-use std::slice;
+use std::{process, slice};
 
 use bytemuck::{AnyBitPattern, NoUninit};
+use log::debug;
 
-use crate::BitSize;
+use crate::{BitSize, instruction::Instruction};
 
 #[derive(Debug, Copy, Clone, thiserror::Error)]
-#[error("Invalid register: 0x{0:02x}")]
-pub struct RegError(u8);
+pub enum CpuError {
+    #[error("{0}")]
+    Reg(#[from] RegError),
+}
 
 #[derive(Default, Copy, Clone)]
 pub struct Cpu {
+    /// general purpose registers
     pub gp: Registers,
     /// base ptr in memory to display graphics data
     pub gfx: BitSize,
     /// program counter
     pub pc: BitSize,
 }
+
+impl Cpu {
+    pub fn process(&mut self, inst: Instruction) -> Result<(), CpuError> {
+        let dst = self.gp.get(inst.dst)?;
+        let a = self.gp.get(inst.a)?;
+        let b = self.gp.get(inst.b)?;
+
+        match (inst.mode, dst, inst.op_code, a, b, inst.imm) {
+            // nop
+            (0, _, 0, _, _, None) => debug!("nop"),
+
+            // halt
+            (0, _, 1, a, _, None) => {
+                debug!("halt 0x{:x}", inst.a);
+                process::exit(a as _);
+            }
+
+            _ => unimplemented!(),
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Copy, Clone, thiserror::Error)]
+#[error("Invalid register: 0x{0:02x}")]
+pub struct RegError(u8);
 
 /// Accessible CPU registers
 ///
@@ -119,13 +150,9 @@ impl Registers {
 
     /// Set register based on index
     pub fn set(&mut self, reg: u8, val: BitSize) -> Result<(), RegError> {
-        let error = RegError(reg);
+        let idx = reg as usize * size_of::<BitSize>();
 
-        let idx = (reg as usize)
-            .checked_mul(size_of::<BitSize>())
-            .ok_or(error)?;
-
-        let elem = self.as_array_mut().get_mut(idx).ok_or(error)?;
+        let elem = self.as_array_mut().get_mut(idx).ok_or(RegError(reg))?;
         *elem = val;
 
         Ok(())
@@ -133,13 +160,9 @@ impl Registers {
 
     /// Read register based on index
     pub fn get(&self, reg: u8) -> Result<BitSize, RegError> {
-        let error = RegError(reg);
+        let idx = reg as usize * size_of::<BitSize>();
 
-        let idx = (reg as usize)
-            .checked_mul(size_of::<BitSize>())
-            .ok_or(error)?;
-
-        let elem = self.as_array().get(idx).ok_or(error)?;
-        Ok(*elem)
+        let elem = *self.as_array().get(idx).ok_or(RegError(reg))?;
+        Ok(elem)
     }
 }

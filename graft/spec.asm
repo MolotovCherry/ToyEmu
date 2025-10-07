@@ -103,7 +103,7 @@
 #ruledef
 {
     nop => 0x00000000
-    
+
     halt {a: register} => (0`2 @ 0b0 @ 0`5) @ 0x01 @ a @ 0x00
 
     ; console (utf-8)
@@ -113,21 +113,21 @@
     epr {i: immediate} => (0`2 @ 0b1 @ 0`5) @ 0x03 @ 0x00 @ 0x00 @ i
 
     ; time
-    time {d1: register, d2: register} => (0`2 @ 0b0 @ 0`5) @ 0x04 @ d1 @ d2
+    time {d1: register}, {d2: register} => (0`2 @ 0b0 @ 0`5) @ 0x04 @ d1 @ d2
 
     ; read program counter to register
     rdpc {d: register} => (0`2 @ 0b0 @ d`5) @ 0x05 @ 0x00 @ 0x00
 
     kbrd {d: register} => (0`2 @ 0b0 @ d`5) @ 0x06 @ 0x00 @ 0x00
-    
+
     setgfx {a: register} => (0`2 @ 0b0 @ d`5) @ 0x07 @ a @ 0x00
     setgfx {i: immediate} => (0`2 @ 0b1 @ d`5) @ 0x07 @ 0x00 @ 0x00 @ i
     draw => (0`2 @ 0b0 @ 0`5) @ 0x08 @ 0x00 @ 0x00
-    
+
     ; how much time to sleep in ms
     sleep {a: register} => (0`2 @ 0b0 @ 0`5) @ 0x09 @ a @ 0x00
     sleep {i: immediate} => (0`2 @ 0b1 @ 0`5) @ 0x09 @ 0x00 @ 0x00 @ i
-    
+
     ; ld mem
 
     ld {d: register}, mem[{a: register}] =>
@@ -234,10 +234,10 @@
 
     cmp {d: register}, {a: register}, {b: register} =>
         (1`2 @ 0b0 @ d`5) @ 0x0a @ a @ b
-  
+
     div {d: register}, {a: register}, {b: register} =>
         (1`2 @ 0b0 @ d`5) @ 0x0b @ a @ b
-        
+
     rem {d: register}, {a: register}, {b: register} =>
         (1`2 @ 0b0 @ d`5) @ 0x0c @ a @ b
 
@@ -280,7 +280,7 @@
 
     div {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x0b @ a @ 0x00 @ i
-        
+
     rem {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x0c @ a @ 0x00 @ i
 
