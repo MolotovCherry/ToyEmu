@@ -88,16 +88,16 @@ impl Cpu {
                     .map(|d| d.as_nanos())
                     .unwrap_or(0);
 
-                let split = time.to_le_bytes();
-                let av = u32::from_le_bytes([split[3], split[2], split[1], split[0]]);
-                let bv = u32::from_le_bytes([split[7], split[6], split[5], split[4]]);
-                let cv = u32::from_le_bytes([split[11], split[10], split[9], split[8]]);
-                let dv = u32::from_le_bytes([split[15], split[14], split[13], split[12]]);
+                let split = time.to_be_bytes();
+                let av = u32::from_be_bytes([split[3], split[2], split[1], split[0]]);
+                let bv = u32::from_be_bytes([split[7], split[6], split[5], split[4]]);
+                let cv = u32::from_be_bytes([split[11], split[10], split[9], split[8]]);
+                let dv = u32::from_be_bytes([split[15], split[14], split[13], split[12]]);
 
-                self.gp.set(a, av)?;
-                self.gp.set(b, bv)?;
-                self.gp.set(c, cv)?;
-                self.gp.set(d, dv)?;
+                self.gp.set(a, dv)?;
+                self.gp.set(b, cv)?;
+                self.gp.set(c, bv)?;
+                self.gp.set(d, av)?;
             }
 
             // rdpc {reg}
@@ -130,17 +130,23 @@ impl Cpu {
                 unimplemented!()
             }
 
-            // sleep {reg}
-            (0, _, 0x9, a, _, None) => {
-                trace!("sleep {}", Self::mnemonic(a));
-                let val = self.gp.get(a)?;
-                thread::sleep(Duration::from_millis(val as u64));
+            // sleep {reg}, {reg}
+            (0, _, 0x9, a, b, None) => {
+                trace!("sleep {}, {}", Self::mnemonic(a), Self::mnemonic(b));
+                let val = self.gp.get(b)?.to_be_bytes();
+                let val2 = self.gp.get(a)?.to_be_bytes();
+
+                let val = u64::from_be_bytes([
+                    val2[3], val2[2], val2[1], val2[0], val[3], val[2], val[1], val[0],
+                ]);
+
+                thread::sleep(Duration::from_micros(val));
             }
 
             // sleep {imm}
             (0, _, 0x9, _, _, Some(i)) => {
                 trace!("sleep {i}");
-                thread::sleep(Duration::from_millis(i as u64));
+                thread::sleep(Duration::from_micros(i as u64));
             }
 
             // TODO: load / str ops

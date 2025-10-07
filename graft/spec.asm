@@ -126,7 +126,7 @@
     draw => (0`2 @ 0b0 @ 0`5) @ 0x08 @ 0x00 @ 0x00
 
     ; how much time to sleep in ms
-    sleep {a: register} => (0`2 @ 0b0 @ 0`5) @ 0x09 @ a @ 0x00
+    sleep {a: register}, {b: register} => (0`2 @ 0b0 @ 0`5) @ 0x09 @ a @ b
     sleep {i: immediate} => (0`2 @ 0b1 @ 0`5) @ 0x09 @ 0x00 @ 0x00 @ i
 
     ; ld mem
