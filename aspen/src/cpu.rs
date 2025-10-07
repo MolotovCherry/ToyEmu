@@ -1,6 +1,6 @@
 use std::{
-    process, slice,
-    time::{Instant, SystemTime},
+    process, slice, thread,
+    time::{Duration, Instant, SystemTime},
 };
 
 use bytemuck::{AnyBitPattern, NoUninit};
@@ -26,46 +26,61 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn process(&mut self, inst: Instruction) -> Result<(), CpuError> {
-        let dst = self.gp.get(inst.dst)?;
-        let a = self.gp.get(inst.a)?;
-        let b = self.gp.get(inst.b)?;
-
-        match (inst.mode, dst, inst.op_code, a, b, inst.imm) {
+        match (inst.mode, inst.dst, inst.op_code, inst.a, inst.b, inst.imm) {
             // nop
-            (0, _, 0, _, _, None) => trace!("nop"),
+            (0, _, 0x0, _, _, None) => trace!("nop"),
 
             // halt
-            (0, _, 1, a, _, None) => {
-                trace!("halt {}", Self::mnemonic(inst.a));
-                process::exit(a as _);
+            (0, _, 0x1, a, _, None) => {
+                trace!("halt {}", Self::mnemonic(a));
+                let val = self.gp.get(a)?;
+                process::exit(val as _);
             }
 
-            // pr {reg} / pr {imm}
-            (0, _, 2, a, _, imm) => {
-                trace!("pr {}", Self::mnemonic(inst.a));
-                let bytes = imm.unwrap_or(a).to_le_bytes();
+            // pr {reg}
+            (0, _, 0x2, a, _, None) => {
+                trace!("pr {}", Self::mnemonic(a));
+                let val = self.gp.get(a)?;
+                let bytes = val.to_le_bytes();
                 let c = str::from_utf8(&bytes).unwrap_or("�");
                 print!("{c}");
             }
 
-            // epr {reg} / epr {imm}
-            (0, _, 3, a, _, imm) => {
-                trace!("pr {}", Self::mnemonic(inst.a));
-                let bytes = imm.unwrap_or(a).to_le_bytes();
+            // pr {imm}
+            (0, _, 0x2, _, _, Some(i)) => {
+                trace!("pr 0x{i:0>8x}");
+                let bytes = i.to_le_bytes();
+                let c = str::from_utf8(&bytes).unwrap_or("�");
+                print!("{c}");
+            }
+
+            // epr {reg}
+            (0, _, 0x3, a, _, None) => {
+                trace!("epr {}", Self::mnemonic(a));
+                let val = self.gp.get(a)?;
+                let bytes = val.to_le_bytes();
+                let c = str::from_utf8(&bytes).unwrap_or("�");
+                eprint!("{c}");
+            }
+
+            // epr {imm}
+            (0, _, 0x3, _, _, Some(i)) => {
+                trace!("epr 0x{i:0>8x}");
+                let bytes = i.to_le_bytes();
                 let c = str::from_utf8(&bytes).unwrap_or("�");
                 eprint!("{c}");
             }
 
             // time {reg}, {reg}, {reg}, {reg}
-            (0, _, 4, _, _, Some(c)) => {
-                let [d3, d4, _, _] = c.to_le_bytes();
+            (0, _, 0x4, a, b, Some(i)) => {
+                let [c, d, _, _] = i.to_be_bytes();
 
                 trace!(
                     "time {}, {}, {}, {}",
-                    Self::mnemonic(inst.a),
-                    Self::mnemonic(inst.b),
-                    Self::mnemonic(d3),
-                    Self::mnemonic(d4)
+                    Self::mnemonic(a),
+                    Self::mnemonic(b),
+                    Self::mnemonic(c),
+                    Self::mnemonic(d)
                 );
 
                 let time = SystemTime::now()
@@ -74,17 +89,61 @@ impl Cpu {
                     .unwrap_or(0);
 
                 let split = time.to_le_bytes();
-                let a = u32::from_le_bytes([split[3], split[2], split[1], split[0]]);
-                let b = u32::from_le_bytes([split[7], split[6], split[5], split[4]]);
-                let c = u32::from_le_bytes([split[11], split[10], split[9], split[8]]);
-                let d = u32::from_le_bytes([split[15], split[14], split[13], split[12]]);
+                let av = u32::from_le_bytes([split[3], split[2], split[1], split[0]]);
+                let bv = u32::from_le_bytes([split[7], split[6], split[5], split[4]]);
+                let cv = u32::from_le_bytes([split[11], split[10], split[9], split[8]]);
+                let dv = u32::from_le_bytes([split[15], split[14], split[13], split[12]]);
 
-                self.gp.set(inst.a, a)?;
-                self.gp.set(inst.b, b)?;
-                self.gp.set(d3, c)?;
-                self.gp.set(d4, d)?;
+                self.gp.set(a, av)?;
+                self.gp.set(b, bv)?;
+                self.gp.set(c, cv)?;
+                self.gp.set(d, dv)?;
             }
 
+            // rdpc {reg}
+            (0, dst, 0x5, _, _, None) => {
+                trace!("rdpc {}", Self::mnemonic(dst));
+                self.gp.set(dst, self.pc)?;
+            }
+
+            // kbrd {reg}
+            (0, dst, 0x6, _, _, None) => {
+                trace!("kbrd {}", Self::mnemonic(dst));
+                unimplemented!()
+            }
+
+            // setgfx {reg}
+            (0, _, 0x7, a, _, None) => {
+                trace!("setgfx {}", Self::mnemonic(a));
+                unimplemented!()
+            }
+
+            // setgfx {imm}
+            (0, _, 0x7, _, _, Some(i)) => {
+                trace!("setgfx 0x{i:0>8x}");
+                unimplemented!()
+            }
+
+            // draw
+            (0, _, 0x8, _, _, _) => {
+                trace!("draw");
+                unimplemented!()
+            }
+
+            // sleep {reg}
+            (0, _, 0x9, a, _, None) => {
+                trace!("sleep {}", Self::mnemonic(a));
+                let val = self.gp.get(a)?;
+                thread::sleep(Duration::from_millis(val as u64));
+            }
+
+            // sleep {imm}
+            (0, _, 0x9, _, _, Some(i)) => {
+                trace!("sleep {i}");
+                thread::sleep(Duration::from_millis(i as u64));
+            }
+
+            // TODO: load / str ops
             _ => unimplemented!(),
         }
 

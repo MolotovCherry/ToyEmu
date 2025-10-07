@@ -50,7 +50,7 @@ impl Instruction {
             }
 
             let arr: [u8; 4] = inst[4..8].try_into().unwrap();
-            let val = BitSize::from_le_bytes(arr);
+            let val = BitSize::from_be_bytes(arr);
 
             Some(val)
         } else {
