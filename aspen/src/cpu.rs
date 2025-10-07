@@ -1,5 +1,5 @@
 use std::{
-    ops::{Deref, DerefMut},
+    ops::{Bound, Deref, DerefMut, Range, RangeBounds, RangeFrom, Rem},
     process, slice, thread,
     time::{Duration, SystemTime},
 };
@@ -163,7 +163,11 @@ impl Cpu {
 
             // TODO: load / str ops
 
-            // nand {reg}, {reg}, {reg}
+            //
+            // MATH
+            //
+
+            // nand {reg}, {reg}, {reg} / nand {reg}, {reg}, {imm}
             (1, dst, 0x0, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
@@ -189,7 +193,7 @@ impl Cpu {
                 self.gp.set_reg(dst, !(a & b))?;
             }
 
-            // or {reg}, {reg}, {reg}
+            // or {reg}, {reg}, {reg} / or {reg}, {reg}, {imm}
             (1, dst, 0x1, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
@@ -213,6 +217,214 @@ impl Cpu {
                 };
 
                 self.gp.set_reg(dst, a | b)?;
+            }
+
+            // and {reg}, {reg}, {reg} / and {reg}, {reg}, {imm}
+            (1, dst, 0x2, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "and {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "and {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                self.gp.set_reg(dst, a & b)?;
+            }
+
+            // nor {reg}, {reg}, {reg} / nor {reg}, {reg}, {imm}
+            (1, dst, 0x3, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "nor {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "nor {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                self.gp.set_reg(dst, !(a | b))?;
+            }
+
+            // add {reg}, {reg}, {reg} / add {reg}, {reg}, {imm}
+            (1, dst, 0x4, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "add {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "add {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                self.gp.set_reg(dst, a.wrapping_add(b))?;
+            }
+
+            // sub {reg}, {reg}, {reg} / sub {reg}, {reg}, {imm}
+            (1, dst, 0x5, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "sub {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "sub {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                self.gp.set_reg(dst, a.wrapping_sub(b))?;
+            }
+
+            // xor {reg}, {reg}, {reg} / xor {reg}, {reg}, {imm}
+            (1, dst, 0x6, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "xor {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "xor {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                self.gp.set_reg(dst, a ^ b)?;
+            }
+
+            // lsl {reg}, {reg}, {reg} / lsl {reg}, {reg}, {imm}
+            (1, dst, 0x7, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "lsl {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "lsl {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                self.gp.set_reg(dst, a << b)?;
+            }
+
+            // lsr {reg}, {reg}, {reg} / lsr {reg}, {reg}, {imm}
+            (1, dst, 0x8, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "lsr {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "lsr {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                self.gp.set_reg(dst, a >> b)?;
+            }
+
+            // mul {reg}, {reg}, {reg} / mul {reg}, {reg}, {imm}
+            (1, dst, 0x9, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "mul {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "mul {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                self.gp.set_reg(dst, a.wrapping_mul(b))?;
             }
 
             // cmp {reg}, {reg}, {reg} / cmp {reg}, {reg}, {imm}
@@ -262,6 +474,60 @@ impl Cpu {
                 }
 
                 self.gp.set_reg(dst, flags.bits())?;
+            }
+
+            // div {reg}, {reg}, {reg} / div {reg}, {reg}, {imm}
+            (1, dst, 0xb, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "div {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "div {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let val = if a != 0 { a.wrapping_div(b) } else { 0 };
+
+                self.gp.set_reg(dst, val)?;
+            }
+
+            // rem {reg}, {reg}, {reg} / rem {reg}, {reg}, {imm}
+            (1, dst, 0xc, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "rem {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "rem {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                self.gp.set_reg(dst, a % b)?;
             }
 
             //
@@ -613,6 +879,79 @@ impl Cpu {
             //
             // STACK
             //
+
+            // push {reg}
+            (3, _, 0x0, a, _, _) => {
+                trace!("push {}", Self::mnemonic(a));
+
+                let a = self.gp.get_reg(a)?;
+                let old_sp = self.gp.sp;
+
+                self.gp.sp = self.gp.sp.wrapping_sub(size_of::<BitSize>() as _);
+
+                let slice = if old_sp < self.gp.sp {
+                    &mut mem[self.gp.sp..]
+                } else {
+                    &mut mem[self.gp.sp..old_sp]
+                };
+
+                slice.copy_from_slice(&a.to_be_bytes());
+            }
+
+            // pop {reg}
+            (3, dst, 0x1, _, _, _) => {
+                trace!("pop {}", Self::mnemonic(dst));
+
+                let bytes = &mem[self.gp.sp..self.gp.sp + size_of::<BitSize>() as BitSize];
+                let data = BitSize::from_be_bytes(bytes.try_into().unwrap());
+                self.gp.sp = self.gp.sp.wrapping_add(size_of::<BitSize>() as _);
+                self.gp.set_reg(dst, data)?;
+            }
+
+            // call {reg}, call {imm}
+            (3, _, 0x2, a, _, imm) => {
+                match imm {
+                    Some(i) => trace!("call 0x{i:0>8x}"),
+                    None => trace!("call {}", Self::mnemonic(a)),
+                }
+
+                // push old ra to stack
+                let old_sp = self.gp.sp;
+                self.gp.sp = self.gp.sp.wrapping_sub(size_of::<BitSize>() as _);
+                mem[self.gp.sp..old_sp].copy_from_slice(&self.gp.ra.to_be_bytes());
+
+                let jmp = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(a)?,
+                };
+
+                // return back to current pc
+                self.gp.ra = self.pc;
+                // make sure to set to next instruction
+                self.gp.ra += if inst.imm.is_some() { 8 } else { 4 };
+
+                // set pc to new loc
+                self.pc = jmp;
+
+                return Ok(());
+            }
+
+            // ret
+            (3, _, 0x3, _, _, _) => {
+                trace!("ret");
+
+                // jmp to return addr
+                self.pc = self.gp.ra;
+
+                // pop old ra off stack and set it
+                let bytes = &mem[self.gp.sp..self.gp.sp + size_of::<BitSize>() as BitSize];
+                let ra = BitSize::from_be_bytes(bytes.try_into().unwrap());
+                self.gp.sp = self.gp.sp.wrapping_add(size_of::<BitSize>() as _);
+                self.gp.ra = ra;
+
+                return Ok(());
+            }
+
             _ => unimplemented!(),
         }
 
@@ -670,7 +1009,7 @@ pub struct RegError(u8);
 /// \[r\] - caller saved
 /// \[e\] - callee saved
 #[repr(C)]
-#[derive(Copy, Clone, Default, NoUninit, AnyBitPattern)]
+#[derive(Copy, Clone, NoUninit, AnyBitPattern)]
 pub struct Registers {
     /// zero register
     pub zr: BitSize,
@@ -738,6 +1077,45 @@ pub struct Registers {
     pub a7: BitSize,
 }
 
+impl Default for Registers {
+    fn default() -> Self {
+        Self {
+            zr: Default::default(),
+            ra: Default::default(),
+            sp: BitSize::MAX,
+            gp: Default::default(),
+            tp: Default::default(),
+            t0: Default::default(),
+            t1: Default::default(),
+            t2: Default::default(),
+            t3: Default::default(),
+            t4: Default::default(),
+            t5: Default::default(),
+            t6: Default::default(),
+            s0: Default::default(),
+            s1: Default::default(),
+            s2: Default::default(),
+            s3: Default::default(),
+            s4: Default::default(),
+            s5: Default::default(),
+            s6: Default::default(),
+            s7: Default::default(),
+            s8: Default::default(),
+            s9: Default::default(),
+            s10: Default::default(),
+            s11: Default::default(),
+            a0: Default::default(),
+            a1: Default::default(),
+            a2: Default::default(),
+            a3: Default::default(),
+            a4: Default::default(),
+            a5: Default::default(),
+            a6: Default::default(),
+            a7: Default::default(),
+        }
+    }
+}
+
 impl Deref for Registers {
     type Target = [BitSize];
 
@@ -772,6 +1150,11 @@ impl Registers {
     /// Set register based on index
     #[inline]
     pub fn set_reg(&mut self, reg: u8, val: BitSize) -> Result<(), RegError> {
+        // zr is a noop
+        if reg == 0 {
+            return Ok(());
+        }
+
         let elem = self.get_mut(reg as usize).ok_or(RegError(reg))?;
 
         *elem = val;

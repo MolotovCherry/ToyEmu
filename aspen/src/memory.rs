@@ -32,39 +32,19 @@ impl<R: RangeBounds<BitSize>> Index<R> for Memory {
     type Output = [u8];
 
     fn index(&self, index: R) -> &Self::Output {
-        let start = match index.start_bound() {
-            Bound::Included(n) => Bound::Included(*n as usize),
-            Bound::Excluded(n) => Bound::Excluded(*n as usize),
-            Bound::Unbounded => Bound::Unbounded,
-        };
+        let start = index.start_bound().map(|u| *u as usize);
+        let end = index.end_bound().map(|u| *u as usize);
 
-        let end = match index.end_bound() {
-            Bound::Included(n) => Bound::Included(*n as usize),
-            Bound::Excluded(n) => Bound::Excluded(*n as usize),
-            Bound::Unbounded => Bound::Unbounded,
-        };
-
-        // SAFETY: alloc is BitSize::MAX big, and index is at maximum BitSize::MAX
-        unsafe { self.data.get_unchecked((start, end)) }
+        &self.data[(start, end)]
     }
 }
 
 impl<R: RangeBounds<BitSize>> IndexMut<R> for Memory {
     fn index_mut(&mut self, index: R) -> &mut Self::Output {
-        let start = match index.start_bound() {
-            Bound::Included(n) => Bound::Included(*n as usize),
-            Bound::Excluded(n) => Bound::Excluded(*n as usize),
-            Bound::Unbounded => Bound::Unbounded,
-        };
+        let start = index.start_bound().map(|u| *u as usize);
+        let end = index.end_bound().map(|u| *u as usize);
 
-        let end = match index.end_bound() {
-            Bound::Included(n) => Bound::Included(*n as usize),
-            Bound::Excluded(n) => Bound::Excluded(*n as usize),
-            Bound::Unbounded => Bound::Unbounded,
-        };
-
-        // SAFETY: alloc is BitSize::MAX big, and index is at maximum BitSize::MAX
-        unsafe { self.data.get_unchecked_mut((start, end)) }
+        &mut self.data[(start, end)]
     }
 }
 

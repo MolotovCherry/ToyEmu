@@ -204,83 +204,66 @@
 
     nand {d: register}, {a: register}, {b: register} =>
         (1`2 @ 0b0 @ d`5) @ 0x00 @ a @ b
-
-    or {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x01 @ a @ b
-
-    and {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x02 @ a @ b
-
-    nor {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x03 @ a @ b
-
-    add {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x04 @ a @ b
-
-    sub {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x05 @ a @ b
-
-    xor {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x06 @ a @ b
-
-    lsl {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x07 @ a @ b
-
-    lsr {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x08 @ a @ b
-
-    mul {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x09 @ a @ b
-
-    cmp {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x0a @ a @ b
-
-    div {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x0b @ a @ b
-
-    rem {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x0c @ a @ b
-
-    ;
-    ; math immediate
-    ;
-
     nand {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x00 @ a @ 0x00 @ i
 
+    or {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x01 @ a @ b
     or {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x01 @ a @ 0x00 @ i
 
+    and {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x02 @ a @ b
     and {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x02 @ a @ 0x00 @ i
 
+    nor {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x03 @ a @ b
     nor {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x03 @ a @ 0x00 @ i
 
+    add {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x04 @ a @ b
     add {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x04 @ a @ 0x00 @ i
 
+    sub {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x05 @ a @ b
     sub {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x05 @ a @ 0x00 @ i
 
+    xor {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x06 @ a @ b
     xor {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x06 @ a @ 0x00 @ i
 
+    lsl {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x07 @ a @ b
     lsl {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x07 @ a @ 0x00 @ i
 
+    lsr {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x08 @ a @ b
     lsr {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x08 @ a @ 0x00 @ i
 
+    mul {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x09 @ a @ b
     mul {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x09 @ a @ 0x00 @ i
 
+    cmp {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x0a @ a @ b
     cmp {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x0a @ a @ 0x00 @ i
 
+    div {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x0b @ a @ b
     div {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x0b @ a @ 0x00 @ i
 
+    rem {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x0c @ a @ b
     rem {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x0c @ a @ 0x00 @ i
 
@@ -333,34 +316,16 @@
     jno {f: register}, {b: register}   => (2`2 @ 0b1 @ 0`5) @ 0x0e @ f @ b
     jno {f: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x0e @ f @ 0x00 @ i
 
+    ;
     ; stack
+    ;
 
-    ; push {a: register} => asm {
-    ;     sub sp, sp, 2
-    ;     str.w mem[sp], {a}
-    ; }
     push {a: register} => (3`2 @ 0b0 @ 0`5) @ 0x00 @ a @ 0x00
 
-    ; pop {a: register} => asm {
-    ;     ld.w {a}, mem[sp]
-    ;     add sp, sp, 2
-    ; }
-    pop {a: register} => (3`2 @ 0b0 @ 0`5) @ 0x01 @ a @ 0x00
+    pop {d: register} => (3`2 @ 0b0 @ d`5) @ 0x01 @ 0x00 @ 0x00
 
-    ; call {i: immediate} => asm {
-    ;     rdpc flags
-    ;     add flags, flags, 20
-    ;     sub sp, sp, 2
-    ;     str.w mem[sp], flags
-    ;     jmp {i}
-    ; }
     call {a: register}  => (3`2 @ 0b0 @ 0`5) @ 0x02 @ a @ 0x00
     call {i: immediate} => (3`2 @ 0b1 @ 0`5) @ 0x02 @ 0x00 @ 0x00 @ i
 
-    ; ret => asm {
-    ;     ld.w flags, mem[sp]
-    ;     add sp, sp, 2
-    ;     jmp flags
-    ; }
     ret => (3`2 @ 0b0 @ 0`5) @ 0x03 @ 0x00 @ 0x00
 }
