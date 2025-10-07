@@ -1,6 +1,6 @@
 use std::{
     ffi::c_void,
-    ops::{Bound, RangeBounds},
+    ops::{Bound, Index, IndexMut, RangeBounds},
 };
 
 use windows::Win32::{
@@ -27,6 +27,46 @@ pub struct Memory {
 }
 
 unsafe impl Send for Memory {}
+
+impl<R: RangeBounds<BitSize>> Index<R> for Memory {
+    type Output = [u8];
+
+    fn index(&self, index: R) -> &Self::Output {
+        let start = match index.start_bound() {
+            Bound::Included(n) => Bound::Included(*n as usize),
+            Bound::Excluded(n) => Bound::Excluded(*n as usize),
+            Bound::Unbounded => Bound::Unbounded,
+        };
+
+        let end = match index.end_bound() {
+            Bound::Included(n) => Bound::Included(*n as usize),
+            Bound::Excluded(n) => Bound::Excluded(*n as usize),
+            Bound::Unbounded => Bound::Unbounded,
+        };
+
+        // SAFETY: alloc is BitSize::MAX big, and index is at maximum BitSize::MAX
+        unsafe { self.data.get_unchecked((start, end)) }
+    }
+}
+
+impl<R: RangeBounds<BitSize>> IndexMut<R> for Memory {
+    fn index_mut(&mut self, index: R) -> &mut Self::Output {
+        let start = match index.start_bound() {
+            Bound::Included(n) => Bound::Included(*n as usize),
+            Bound::Excluded(n) => Bound::Excluded(*n as usize),
+            Bound::Unbounded => Bound::Unbounded,
+        };
+
+        let end = match index.end_bound() {
+            Bound::Included(n) => Bound::Included(*n as usize),
+            Bound::Excluded(n) => Bound::Excluded(*n as usize),
+            Bound::Unbounded => Bound::Unbounded,
+        };
+
+        // SAFETY: alloc is BitSize::MAX big, and index is at maximum BitSize::MAX
+        unsafe { self.data.get_unchecked_mut((start, end)) }
+    }
+}
 
 impl Memory {
     pub fn new() -> Result<Self, MemError> {
@@ -58,8 +98,8 @@ impl Memory {
     pub fn write<N: Copy + ToBytes>(&mut self, addr: BitSize, val: N) -> Result<(), MemError> {
         self.validate_addr(const { size_of::<N>() as BitSize }, addr)?;
 
-        let buf = self.view_mut(addr..addr + const { size_of::<N>() as BitSize });
-        val.to_le_bytes(buf);
+        let buf = &mut self[addr..addr + const { size_of::<N>() as BitSize }];
+        val.to_be_bytes(buf);
 
         Ok(())
     }
@@ -68,44 +108,10 @@ impl Memory {
     pub fn read<N: FromBytes>(&self, addr: BitSize) -> Result<N, MemError> {
         self.validate_addr(const { size_of::<N>() as BitSize }, addr)?;
 
-        let data = self.view(addr..addr + const { size_of::<N>() as BitSize });
-        let n = N::from_le_bytes(data);
+        let data = &self[addr..addr + const { size_of::<N>() as BitSize }];
+        let n = N::from_be_bytes(data);
 
         Ok(n)
-    }
-
-    pub fn view<R: RangeBounds<BitSize>>(&self, r: R) -> &[u8] {
-        let start = match r.start_bound() {
-            Bound::Included(n) => Bound::Included(*n as usize),
-            Bound::Excluded(n) => Bound::Excluded(*n as usize),
-            Bound::Unbounded => Bound::Unbounded,
-        };
-
-        let end = match r.end_bound() {
-            Bound::Included(n) => Bound::Included(*n as usize),
-            Bound::Excluded(n) => Bound::Excluded(*n as usize),
-            Bound::Unbounded => Bound::Unbounded,
-        };
-
-        // SAFETY: alloc is BitSize::MAX big, and range is BitSize
-        unsafe { self.data.get_unchecked((start, end)) }
-    }
-
-    pub fn view_mut<R: RangeBounds<BitSize>>(&mut self, r: R) -> &mut [u8] {
-        let start = match r.start_bound() {
-            Bound::Included(n) => Bound::Included(*n as usize),
-            Bound::Excluded(n) => Bound::Excluded(*n as usize),
-            Bound::Unbounded => Bound::Unbounded,
-        };
-
-        let end = match r.end_bound() {
-            Bound::Included(n) => Bound::Included(*n as usize),
-            Bound::Excluded(n) => Bound::Excluded(*n as usize),
-            Bound::Unbounded => Bound::Unbounded,
-        };
-
-        // SAFETY: alloc is BitSize::MAX big, and range is BitSize
-        unsafe { self.data.get_unchecked_mut((start, end)) }
     }
 
     /// Validates addr is valid for size and also allocates if needed to make access possible

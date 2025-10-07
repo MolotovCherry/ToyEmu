@@ -3,10 +3,11 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use bstr::ByteSlice;
 use bytemuck::{AnyBitPattern, NoUninit};
 use log::{Level, log_enabled, trace};
 
-use crate::{BitSize, instruction::Instruction};
+use crate::{BitSize, instruction::Instruction, memory::Memory};
 
 #[derive(Debug, Copy, Clone, thiserror::Error)]
 pub enum CpuError {
@@ -25,7 +26,7 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn process(&mut self, inst: Instruction) -> Result<(), CpuError> {
+    pub fn process(&mut self, inst: Instruction, mem: &mut Memory) -> Result<(), CpuError> {
         match (inst.mode, inst.dst, inst.op_code, inst.a, inst.b, inst.imm) {
             // nop
             (0, _, 0x0, _, _, None) => trace!("nop"),
@@ -37,36 +38,26 @@ impl Cpu {
                 process::exit(val as _);
             }
 
-            // pr {reg} / pr {imm}
-            (0, _, 0x2, a, _, imm) => {
-                match imm {
-                    Some(i) => trace!("pr 0x{i:0>8x}"),
-                    None => trace!("pr {}", Self::mnemonic(a)),
-                }
+            // pr {reg}, {reg}
+            (0, _, 0x2, a, b, _) => {
+                trace!("pr {}, {}", Self::mnemonic(a), Self::mnemonic(b));
 
-                let val = match imm {
-                    Some(i) => i,
-                    None => self.gp.get(a)?,
-                };
-                let bytes = val.to_le_bytes();
-                let c = str::from_utf8(&bytes).unwrap_or("�");
-                print!("{c}");
+                let low = self.gp.get(a)?;
+                let high = self.gp.get(b)?;
+
+                let data = mem[low..high].as_bstr();
+                print!("{data}");
             }
 
-            // epr {reg} / epr {imm}
-            (0, _, 0x3, a, _, imm) => {
-                match imm {
-                    Some(i) => trace!("epr 0x{i:0>8x}"),
-                    None => trace!("epr {}", Self::mnemonic(a)),
-                }
+            // epr {reg}, {reg}
+            (0, _, 0x3, a, b, _) => {
+                trace!("epr {}, {}", Self::mnemonic(a), Self::mnemonic(b));
 
-                let val = match imm {
-                    Some(i) => i,
-                    None => self.gp.get(a)?,
-                };
-                let bytes = val.to_le_bytes();
-                let c = str::from_utf8(&bytes).unwrap_or("�");
-                eprint!("{c}");
+                let low = self.gp.get(a)?;
+                let high = self.gp.get(b)?;
+
+                let data = mem[low..high].as_bstr();
+                eprint!("{data}");
             }
 
             // time {reg}, {reg}, {reg}, {reg}

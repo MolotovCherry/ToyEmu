@@ -107,10 +107,8 @@
     halt {a: register} => (0`2 @ 0b0 @ 0`5) @ 0x01 @ a @ 0x00
 
     ; console (utf-8)
-    pr {a: register}  => (0`2 @ 0b0 @ 0`5) @ 0x02 @ a @ 0x00
-    pr {i: immediate} => (0`2 @ 0b1 @ 0`5) @ 0x02 @ 0x00 @ 0x00 @ i
-    epr {a: register}  => (0`2 @ 0b0 @ 0`5) @ 0x03 @ a @ 0x00
-    epr {i: immediate} => (0`2 @ 0b1 @ 0`5) @ 0x03 @ 0x00 @ 0x00 @ i
+    pr {a: register}, {b: register}  => (0`2 @ 0b0 @ 0`5) @ 0x02 @ a @ b
+    epr {a: register}, {b: register}  => (0`2 @ 0b0 @ 0`5) @ 0x03 @ a @ b
 
     ; time
     time {d1: register}, {d2: register}, {d3: register}, {d4: register} =>

@@ -23,8 +23,7 @@ pub struct Emulator {
 impl Emulator {
     pub fn new(program: &[u8]) -> Result<Self, EmuError> {
         let mut mem = Memory::new()?;
-        mem.view_mut(..program.len() as BitSize)
-            .copy_from_slice(program);
+        mem[..program.len() as BitSize].copy_from_slice(program);
 
         let this = Self {
             cpu: Cpu::default(),
@@ -37,12 +36,12 @@ impl Emulator {
     pub fn run(&mut self) -> Result<Infallible, EmuError> {
         loop {
             let inst = self.next_inst()?;
-            self.cpu.process(inst)?;
+            self.cpu.process(inst, &mut self.mem)?;
         }
     }
 
     fn next_inst(&self) -> Result<Instruction, InstError> {
-        let view = self.mem.view(self.cpu.pc..);
+        let view = &self.mem[self.cpu.pc..];
         let i = Instruction::from_slice(view)?;
 
         Ok(i)
