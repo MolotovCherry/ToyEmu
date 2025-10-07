@@ -1,12 +1,12 @@
 use std::{
     process, slice, thread,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, SystemTime},
 };
 
 use bytemuck::{AnyBitPattern, NoUninit};
-use log::{Level, debug, log_enabled, trace};
+use log::{Level, log_enabled, trace};
 
-use crate::{BitSize, instruction::Instruction, utils::Disp};
+use crate::{BitSize, instruction::Instruction};
 
 #[derive(Debug, Copy, Clone, thiserror::Error)]
 pub enum CpuError {
