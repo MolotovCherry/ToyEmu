@@ -30,6 +30,8 @@ bitflags! {
 pub enum CpuError {
     #[error("{0}")]
     Reg(#[from] RegError),
+    #[error("Unsupported instruction: {0:?}")]
+    UnsupportedInst(Instruction),
 }
 
 #[derive(Default, Copy, Clone)]
@@ -530,6 +532,39 @@ impl Cpu {
                 self.gp.set_reg(dst, a % b)?;
             }
 
+            // mov {reg}, {reg} / mov {reg}, {imm}
+            (1, dst, 0xd, a, _, imm) => {
+                match imm {
+                    Some(i) => trace!("mov {}, 0x{i:0>8x}", Self::mnemonic(dst)),
+                    None => trace!("mov {}, {}", Self::mnemonic(dst), Self::mnemonic(a)),
+                }
+
+                let a = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(a)?,
+                };
+
+                self.gp.set_reg(dst, a)?;
+            }
+
+            // inc {reg}
+            (1, dst, 0xe, a, _, _) => {
+                trace!("inc {}", Self::mnemonic(dst));
+
+                let a = self.gp.get_reg(a)?.wrapping_add(1);
+
+                self.gp.set_reg(dst, a)?;
+            }
+
+            // dec {reg}
+            (1, dst, 0xf, a, _, _) => {
+                trace!("dec {}", Self::mnemonic(dst));
+
+                let a = self.gp.get_reg(a)?.wrapping_sub(1);
+
+                self.gp.set_reg(dst, a)?;
+            }
+
             //
             // CONDITIONALS
             //
@@ -952,7 +987,7 @@ impl Cpu {
                 return Ok(());
             }
 
-            _ => unimplemented!(),
+            _ => return Err(CpuError::UnsupportedInst(inst)),
         }
 
         self.pc += if inst.imm.is_some() { 8 } else { 4 };

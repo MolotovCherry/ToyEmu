@@ -269,11 +269,13 @@
 
     ; extra
 
-    inc {a: register} => asm { add {a}, {a}, 1 }
-    dec {a: register} => asm { sub {a}, {a}, 1 }
+    mov {d: register}, {a: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x0d @ a @ 0x00
+    mov {d: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x0d @ 0x00 @ 0x00 @ i
 
-    mov {d: register}, {a: register}  => asm { or {d}, {a}, zr }
-    mov {d: register}, {i: immediate} => asm { or {d}, zr, {i} }
+    inc {d: register} => (1`2 @ 0b0 @ d`5) @ 0x0e @ 0x00 @ 0x00
+    dec {d: register} => (1`2 @ 0b0 @ d`5) @ 0x0f @ 0x00 @ 0x00
 
     neg {a: register}, {b: register} => asm { sub {a}, zr, {b} }
     neg {a: register}, {b: immediate} => asm { sub {a}, zr, {b} }

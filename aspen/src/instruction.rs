@@ -19,7 +19,7 @@ pub enum InstError {
     WrongSize(usize),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Instruction {
     pub mode: u8,
     pub dst: u8,
