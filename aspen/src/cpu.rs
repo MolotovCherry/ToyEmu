@@ -44,8 +44,11 @@ impl Cpu {
                     None => trace!("pr {}", Self::mnemonic(a)),
                 }
 
-                let val = self.gp.get(a)?;
-                let bytes = imm.unwrap_or(val).to_le_bytes();
+                let val = match imm {
+                    Some(i) => i,
+                    None => self.gp.get(a)?,
+                };
+                let bytes = val.to_le_bytes();
                 let c = str::from_utf8(&bytes).unwrap_or("�");
                 print!("{c}");
             }
@@ -57,8 +60,11 @@ impl Cpu {
                     None => trace!("epr {}", Self::mnemonic(a)),
                 }
 
-                let val = self.gp.get(a)?;
-                let bytes = imm.unwrap_or(val).to_le_bytes();
+                let val = match imm {
+                    Some(i) => i,
+                    None => self.gp.get(a)?,
+                };
+                let bytes = val.to_le_bytes();
                 let c = str::from_utf8(&bytes).unwrap_or("�");
                 eprint!("{c}");
             }
@@ -111,8 +117,10 @@ impl Cpu {
                     None => trace!("setgfx {}", Self::mnemonic(a)),
                 }
 
-                let a = self.gp.get(a)?;
-                let a = imm.unwrap_or(a);
+                let a = match imm {
+                    Some(i) => i,
+                    None => self.gp.get(a)?,
+                };
 
                 self.gfx = a;
             }
@@ -132,14 +140,17 @@ impl Cpu {
                     }
                 }
 
-                let val = self.gp.get(b)?.to_be_bytes();
-                let val2 = self.gp.get(a)?.to_be_bytes();
+                let val = match imm {
+                    Some(i) => i as _,
+                    None => {
+                        let val = self.gp.get(b)?.to_be_bytes();
+                        let val2 = self.gp.get(a)?.to_be_bytes();
 
-                let val = imm.map(|i| i as u64).unwrap_or_else(|| {
-                    u64::from_be_bytes([
-                        val2[3], val2[2], val2[1], val2[0], val[3], val[2], val[1], val[0],
-                    ])
-                });
+                        u64::from_be_bytes([
+                            val2[3], val2[2], val2[1], val2[0], val[3], val[2], val[1], val[0],
+                        ])
+                    }
+                };
 
                 thread::sleep(Duration::from_micros(val));
             }
@@ -164,8 +175,10 @@ impl Cpu {
                 }
 
                 let a = self.gp.get(a)?;
-                let b = self.gp.get(b)?;
-                let b = imm.unwrap_or(b);
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get(b)?,
+                };
 
                 self.gp.set(dst, !(a & b))?;
             }
@@ -188,8 +201,10 @@ impl Cpu {
                 }
 
                 let a = self.gp.get(a)?;
-                let b = self.gp.get(b)?;
-                let b = imm.unwrap_or(b);
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get(b)?,
+                };
 
                 self.gp.set(dst, a | b)?;
             }
