@@ -1,13 +1,30 @@
 use std::{
+    ops::{Deref, DerefMut},
     process, slice, thread,
     time::{Duration, SystemTime},
 };
 
+use bitflags::bitflags;
 use bstr::ByteSlice;
 use bytemuck::{AnyBitPattern, NoUninit};
-use log::{Level, log_enabled, trace};
+use log::trace;
 
 use crate::{BitSize, instruction::Instruction, memory::Memory};
+
+bitflags! {
+    /// Represents a set of flags.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    struct Flags: BitSize {
+        /// Zero Flag
+        const Z = 0b00000001;
+        /// Carry Flag
+        const C = 0b00000010;
+        /// Sign Flag
+        const S = 0b00000100;
+        /// Overflow Flag
+        const O = 0b00001000;
+    }
+}
 
 #[derive(Debug, Copy, Clone, thiserror::Error)]
 pub enum CpuError {
@@ -31,10 +48,10 @@ impl Cpu {
             // nop
             (0, _, 0x0, _, _, None) => trace!("nop"),
 
-            // halt
+            // hlt
             (0, _, 0x1, a, _, None) => {
-                trace!("halt {}", Self::mnemonic(a));
-                let val = self.gp.get(a)?;
+                trace!("hlt {}", Self::mnemonic(a));
+                let val = self.gp.get_reg(a)?;
                 process::exit(val as _);
             }
 
@@ -42,8 +59,8 @@ impl Cpu {
             (0, _, 0x2, a, b, _) => {
                 trace!("pr {}, {}", Self::mnemonic(a), Self::mnemonic(b));
 
-                let low = self.gp.get(a)?;
-                let high = self.gp.get(b)?;
+                let low = self.gp.get_reg(a)?;
+                let high = self.gp.get_reg(b)?;
 
                 let data = mem[low..high].as_bstr();
                 print!("{data}");
@@ -53,8 +70,8 @@ impl Cpu {
             (0, _, 0x3, a, b, _) => {
                 trace!("epr {}, {}", Self::mnemonic(a), Self::mnemonic(b));
 
-                let low = self.gp.get(a)?;
-                let high = self.gp.get(b)?;
+                let low = self.gp.get_reg(a)?;
+                let high = self.gp.get_reg(b)?;
 
                 let data = mem[low..high].as_bstr();
                 eprint!("{data}");
@@ -83,16 +100,16 @@ impl Cpu {
                 let cv = u32::from_be_bytes([split[11], split[10], split[9], split[8]]);
                 let dv = u32::from_be_bytes([split[15], split[14], split[13], split[12]]);
 
-                self.gp.set(a, dv)?;
-                self.gp.set(b, cv)?;
-                self.gp.set(c, bv)?;
-                self.gp.set(d, av)?;
+                self.gp.set_reg(a, dv)?;
+                self.gp.set_reg(b, cv)?;
+                self.gp.set_reg(c, bv)?;
+                self.gp.set_reg(d, av)?;
             }
 
             // rdpc {reg}
             (0, dst, 0x5, _, _, None) => {
                 trace!("rdpc {}", Self::mnemonic(dst));
-                self.gp.set(dst, self.pc)?;
+                self.gp.set_reg(dst, self.pc)?;
             }
 
             // kbrd {reg}
@@ -110,7 +127,7 @@ impl Cpu {
 
                 let a = match imm {
                     Some(i) => i,
-                    None => self.gp.get(a)?,
+                    None => self.gp.get_reg(a)?,
                 };
 
                 self.gfx = a;
@@ -124,18 +141,16 @@ impl Cpu {
 
             // sleep {reg}, {reg} / sleep {imm}
             (0, _, 0x9, a, b, imm) => {
-                if log_enabled!(Level::Trace) {
-                    match imm {
-                        Some(i) => trace!("sleep {i}"),
-                        None => trace!("sleep {}, {}", Self::mnemonic(a), Self::mnemonic(b)),
-                    }
+                match imm {
+                    Some(i) => trace!("sleep {i}"),
+                    None => trace!("sleep {}, {}", Self::mnemonic(a), Self::mnemonic(b)),
                 }
 
                 let val = match imm {
                     Some(i) => i as _,
                     None => {
-                        let val = self.gp.get(b)?.to_be_bytes();
-                        let val2 = self.gp.get(a)?.to_be_bytes();
+                        let val = self.gp.get_reg(b)?.to_be_bytes();
+                        let val2 = self.gp.get_reg(a)?.to_be_bytes();
 
                         u64::from_be_bytes([
                             val2[3], val2[2], val2[1], val2[0], val[3], val[2], val[1], val[0],
@@ -165,13 +180,13 @@ impl Cpu {
                     ),
                 }
 
-                let a = self.gp.get(a)?;
+                let a = self.gp.get_reg(a)?;
                 let b = match imm {
                     Some(i) => i,
-                    None => self.gp.get(b)?,
+                    None => self.gp.get_reg(b)?,
                 };
 
-                self.gp.set(dst, !(a & b))?;
+                self.gp.set_reg(dst, !(a & b))?;
             }
 
             // or {reg}, {reg}, {reg}
@@ -191,15 +206,413 @@ impl Cpu {
                     ),
                 }
 
-                let a = self.gp.get(a)?;
+                let a = self.gp.get_reg(a)?;
                 let b = match imm {
                     Some(i) => i,
-                    None => self.gp.get(b)?,
+                    None => self.gp.get_reg(b)?,
                 };
 
-                self.gp.set(dst, a | b)?;
+                self.gp.set_reg(dst, a | b)?;
             }
 
+            // cmp {reg}, {reg}, {reg} / cmp {reg}, {reg}, {imm}
+            (1, dst, 0x0a, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "cmp {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "cmp {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let zero = a == b;
+                let less_unsigned = a < b;
+                let less_signed = (a as i32) < b as i32;
+                let overflow = (a as i32).checked_sub(b as i32).is_none();
+
+                let mut flags = Flags::empty();
+
+                if zero {
+                    flags |= Flags::Z;
+                }
+
+                if less_unsigned {
+                    flags |= Flags::C;
+                }
+
+                if less_signed {
+                    flags |= Flags::S;
+                }
+
+                if overflow {
+                    flags |= Flags::O;
+                }
+
+                self.gp.set_reg(dst, flags.bits())?;
+            }
+
+            //
+            // CONDITIONALS
+            //
+
+            // jmp {reg} / jmp {imm}
+            (2, dst, 0x0, _, _, imm) => {
+                match imm {
+                    Some(i) => trace!("jmp 0x{i:0>8x}"),
+                    None => trace!("jmp {}", Self::mnemonic(dst)),
+                }
+
+                let dst = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(dst)?,
+                };
+
+                self.pc = dst;
+                return Ok(());
+            }
+
+            // je {reg}, {reg} / je {reg}, {imm}
+            (2, _, 0x1, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("je {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("je {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                if flags.contains(Flags::Z) {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // jne {reg}, {reg} / jne {reg}, {imm}
+            (2, _, 0x2, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("jne {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("jne {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                if !flags.contains(Flags::Z) {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // jl {reg}, {reg} / jl {reg}, {imm}
+            (2, _, 0x3, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("jl {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("jl {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let sf = flags.contains(Flags::S);
+                let of = flags.contains(Flags::O);
+
+                if sf != of {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // jge {reg}, {reg} / jge {reg}, {imm}
+            (2, _, 0x4, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("jge {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("jge {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let sf = flags.contains(Flags::S);
+                let of = flags.contains(Flags::O);
+
+                if sf == of {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // jle {reg}, {reg} / jle {reg}, {imm}
+            (2, _, 0x5, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("jle {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("jle {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let zf = flags.contains(Flags::Z);
+                let sf = flags.contains(Flags::S);
+                let of = flags.contains(Flags::O);
+
+                if zf || (sf != of) {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // jg {reg}, {reg} / jg {reg}, {imm}
+            (2, _, 0x6, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("jg {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("jg {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let zf = flags.contains(Flags::Z);
+                let sf = flags.contains(Flags::S);
+                let of = flags.contains(Flags::O);
+
+                if !zf && (sf == of) {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // jb {reg}, {reg} / jb {reg}, {imm}
+            (2, _, 0x7, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("jb {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("jb {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let cf = flags.contains(Flags::C);
+
+                if cf {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // jae {reg}, {reg} / jae {reg}, {imm}
+            (2, _, 0x8, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("jae {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("jae {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let cf = flags.contains(Flags::C);
+
+                if !cf {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // jbe {reg}, {reg} / jbe {reg}, {imm}
+            (2, _, 0x9, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("jbe {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("jbe {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let zf = flags.contains(Flags::Z);
+                let cf = flags.contains(Flags::C);
+
+                if cf || zf {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // ja {reg}, {reg} / ja {reg}, {imm}
+            (2, _, 0xa, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("ja {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("ja {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let zf = flags.contains(Flags::Z);
+                let cf = flags.contains(Flags::C);
+
+                if !cf && !zf {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // js {reg}, {reg} / js {reg}, {imm}
+            (2, _, 0xb, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("js {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("js {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let sf = flags.contains(Flags::S);
+
+                if sf {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // jo {reg}, {reg} / jo {reg}, {imm}
+            (2, _, 0xc, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("jo {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("jo {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let of = flags.contains(Flags::O);
+
+                if of {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // jns {reg}, {reg} / jns {reg}, {imm}
+            (2, _, 0xd, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("jns {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("jns {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let sf = flags.contains(Flags::S);
+
+                if !sf {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            // jno {reg}, {reg} / jno {reg}, {imm}
+            (2, _, 0xe, f, b, imm) => {
+                match imm {
+                    Some(i) => trace!("jno {}, 0x{i:0>8x}", Self::mnemonic(f)),
+                    None => trace!("jno {}, {}", Self::mnemonic(f), Self::mnemonic(b)),
+                }
+
+                let f = self.gp.get_reg(f)?;
+                let flags = Flags::from_bits_retain(f);
+
+                let jmp_addr = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
+
+                let of = flags.contains(Flags::O);
+
+                if !of {
+                    self.pc = jmp_addr;
+                    return Ok(());
+                }
+            }
+
+            //
+            // STACK
+            //
             _ => unimplemented!(),
         }
 
@@ -325,22 +738,10 @@ pub struct Registers {
     pub a7: BitSize,
 }
 
-impl Registers {
-    /// Access registers as an array for easy
-    pub fn as_array_mut(&mut self) -> &mut [BitSize] {
-        const {
-            assert!(
-                size_of::<Self>().is_multiple_of(size_of::<BitSize>()),
-                "Registers size does not fit evenly"
-            );
-        }
+impl Deref for Registers {
+    type Target = [BitSize];
 
-        let slice = slice::from_mut(self);
-        bytemuck::must_cast_slice_mut(slice)
-    }
-
-    /// Access registers as an array for easy
-    pub fn as_array(&self) -> &[BitSize] {
+    fn deref(&self) -> &Self::Target {
         const {
             assert!(
                 size_of::<Self>().is_multiple_of(size_of::<BitSize>()),
@@ -351,13 +752,27 @@ impl Registers {
         let slice = slice::from_ref(self);
         bytemuck::must_cast_slice(slice)
     }
+}
 
+impl DerefMut for Registers {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        const {
+            assert!(
+                size_of::<Self>().is_multiple_of(size_of::<BitSize>()),
+                "Registers size does not fit evenly"
+            );
+        }
+
+        let slice = slice::from_mut(self);
+        bytemuck::must_cast_slice_mut(slice)
+    }
+}
+
+impl Registers {
     /// Set register based on index
-    pub fn set(&mut self, reg: u8, val: BitSize) -> Result<(), RegError> {
-        let elem = self
-            .as_array_mut()
-            .get_mut(reg as usize)
-            .ok_or(RegError(reg))?;
+    #[inline]
+    pub fn set_reg(&mut self, reg: u8, val: BitSize) -> Result<(), RegError> {
+        let elem = self.get_mut(reg as usize).ok_or(RegError(reg))?;
 
         *elem = val;
 
@@ -365,8 +780,9 @@ impl Registers {
     }
 
     /// Read register based on index
-    pub fn get(&self, reg: u8) -> Result<BitSize, RegError> {
-        let elem = *self.as_array().get(reg as usize).ok_or(RegError(reg))?;
+    #[inline]
+    pub fn get_reg(&self, reg: u8) -> Result<BitSize, RegError> {
+        let elem = *self.get(reg as usize).ok_or(RegError(reg))?;
 
         Ok(elem)
     }

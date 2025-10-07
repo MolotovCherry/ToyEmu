@@ -15,7 +15,7 @@
 
 #bankdef main
 {
-    #bits 32
+    #bits 8
     #addr 0x00000000
     #size 0xffffffff
     #outp 0
@@ -104,7 +104,8 @@
 {
     nop => 0x00000000
 
-    halt {a: register} => (0`2 @ 0b0 @ 0`5) @ 0x01 @ a @ 0x00
+    hlt => (0`2 @ 0b0 @ 0`5) @ 0x01 @ 0x00 @ 0x00
+    hlt {a: register} => (0`2 @ 0b0 @ 0`5) @ 0x01 @ a @ 0x00
 
     ; console (utf-8)
     pr {a: register}, {b: register}  => (0`2 @ 0b0 @ 0`5) @ 0x02 @ a @ b
@@ -303,16 +304,34 @@
 
     jmp {d: register}  => (2`2 @ 0b0 @ d`5) @ 0x00 @ 0x00 @ 0x00
     jmp {i: immediate} => (2`2 @ 0b1 @ 0`5) @ 0x00 @ 0x00 @ 0x00 @ i
-    je {a: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x01 @ a @ 0x00 @ i
-    jne {a: register}, {i: immediate} => (2`2 @ 0b1 @ 0`5) @ 0x02 @ a @ 0x00 @ i
-    jl {a: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x03 @ a @ 0x00 @ i
-    jge {a: register}, {i: immediate} => (2`2 @ 0b1 @ 0`5) @ 0x04 @ a @ 0x00 @ i
-    jle {a: register}, {i: immediate} => (2`2 @ 0b1 @ 0`5) @ 0x05 @ a @ 0x00 @ i
-    jg {a: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x06 @ a @ 0x00 @ i
-    jb {a: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x07 @ a @ 0x00 @ i
-    jae {a: register}, {i: immediate} => (2`2 @ 0b1 @ 0`5) @ 0x08 @ a @ 0x00 @ i
-    jbe {a: register}, {i: immediate} => (2`2 @ 0b1 @ 0`5) @ 0x09 @ a @ 0x00 @ i
-    ja {a: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x0a @ a @ 0x00 @ i
+    je {f: register}, {b: register}   => (2`2 @ 0b1 @ 0`5) @ 0x01 @ f @ b
+    je {f: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x01 @ f @ 0x00 @ i
+    jne {f: register}, {b: register}  => (2`2 @ 0b1 @ 0`5) @ 0x02 @ f @ b
+    jne {f: register}, {i: immediate} => (2`2 @ 0b1 @ 0`5) @ 0x02 @ f @ 0x00 @ i
+    jl {f: register}, {b: register}   => (2`2 @ 0b1 @ 0`5) @ 0x03 @ f @ b
+    jl {f: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x03 @ f @ 0x00 @ i
+    jge {f: register}, {b: register}  => (2`2 @ 0b1 @ 0`5) @ 0x04 @ f @ b
+    jge {f: register}, {i: immediate} => (2`2 @ 0b1 @ 0`5) @ 0x04 @ f @ 0x00 @ i
+    jle {f: register}, {b: register}  => (2`2 @ 0b1 @ 0`5) @ 0x05 @ f @ b
+    jle {f: register}, {i: immediate} => (2`2 @ 0b1 @ 0`5) @ 0x05 @ f @ 0x00 @ i
+    jg {f: register}, {b: register}   => (2`2 @ 0b1 @ 0`5) @ 0x06 @ f @ b
+    jg {f: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x06 @ f @ 0x00 @ i
+    jb {f: register}, {b: register}   => (2`2 @ 0b1 @ 0`5) @ 0x07 @ f @ b
+    jb {f: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x07 @ f @ 0x00 @ i
+    jae {f: register}, {b: register}  => (2`2 @ 0b1 @ 0`5) @ 0x08 @ f @ b
+    jae {f: register}, {i: immediate} => (2`2 @ 0b1 @ 0`5) @ 0x08 @ f @ 0x00 @ i
+    jbe {f: register}, {b: register}  => (2`2 @ 0b1 @ 0`5) @ 0x09 @ f @ b
+    jbe {f: register}, {i: immediate} => (2`2 @ 0b1 @ 0`5) @ 0x09 @ f @ 0x00 @ i
+    ja {f: register}, {b: register}   => (2`2 @ 0b1 @ 0`5) @ 0x0a @ f @ b
+    ja {f: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x0a @ f @ 0x00 @ i
+    js {f: register}, {b: register}   => (2`2 @ 0b1 @ 0`5) @ 0x0b @ f @ b
+    js {f: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x0b @ f @ 0x00 @ i
+    jo {f: register}, {b: register}   => (2`2 @ 0b1 @ 0`5) @ 0x0c @ f @ b
+    jo {f: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x0c @ f @ 0x00 @ i
+    jns {f: register}, {b: register}   => (2`2 @ 0b1 @ 0`5) @ 0x0d @ f @ b
+    jns {f: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x0d @ f @ 0x00 @ i
+    jno {f: register}, {b: register}   => (2`2 @ 0b1 @ 0`5) @ 0x0e @ f @ b
+    jno {f: register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x0e @ f @ 0x00 @ i
 
     ; stack
 
