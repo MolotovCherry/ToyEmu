@@ -39,11 +39,9 @@ impl Cpu {
 
             // pr {reg} / pr {imm}
             (0, _, 0x2, a, _, imm) => {
-                if log_enabled!(Level::Trace) {
-                    match imm {
-                        Some(i) => trace!("pr 0x{i:0>8x}"),
-                        None => trace!("pr {}", Self::mnemonic(a)),
-                    }
+                match imm {
+                    Some(i) => trace!("pr 0x{i:0>8x}"),
+                    None => trace!("pr {}", Self::mnemonic(a)),
                 }
 
                 let val = self.gp.get(a)?;
@@ -54,11 +52,9 @@ impl Cpu {
 
             // epr {reg} / epr {imm}
             (0, _, 0x3, a, _, imm) => {
-                if log_enabled!(Level::Trace) {
-                    match imm {
-                        Some(i) => trace!("epr 0x{i:0>8x}"),
-                        None => trace!("epr {}", Self::mnemonic(a)),
-                    }
+                match imm {
+                    Some(i) => trace!("epr 0x{i:0>8x}"),
+                    None => trace!("epr {}", Self::mnemonic(a)),
                 }
 
                 let val = self.gp.get(a)?;
@@ -110,14 +106,15 @@ impl Cpu {
 
             // setgfx {reg} / setgfx {imm}
             (0, _, 0x7, a, _, imm) => {
-                if log_enabled!(Level::Trace) {
-                    match imm {
-                        Some(i) => trace!("setgfx 0x{i:0>8x}"),
-                        None => trace!("setgfx {}", Self::mnemonic(a)),
-                    }
+                match imm {
+                    Some(i) => trace!("setgfx 0x{i:0>8x}"),
+                    None => trace!("setgfx {}", Self::mnemonic(a)),
                 }
 
-                unimplemented!()
+                let a = self.gp.get(a)?;
+                let a = imm.unwrap_or(a);
+
+                self.gfx = a;
             }
 
             // draw
@@ -151,21 +148,19 @@ impl Cpu {
 
             // nand {reg}, {reg}, {reg}
             (1, dst, 0x0, a, b, imm) => {
-                if log_enabled!(Level::Trace) {
-                    match imm {
-                        Some(i) => trace!(
-                            "nand {}, {}, 0x{i:0>8x}",
-                            Self::mnemonic(dst),
-                            Self::mnemonic(a)
-                        ),
+                match imm {
+                    Some(i) => trace!(
+                        "nand {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
 
-                        None => trace!(
-                            "nand {}, {}, {}",
-                            Self::mnemonic(dst),
-                            Self::mnemonic(a),
-                            Self::mnemonic(b)
-                        ),
-                    }
+                    None => trace!(
+                        "nand {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
                 }
 
                 let a = self.gp.get(a)?;
@@ -177,21 +172,19 @@ impl Cpu {
 
             // or {reg}, {reg}, {reg}
             (1, dst, 0x1, a, b, imm) => {
-                if log_enabled!(Level::Trace) {
-                    match imm {
-                        Some(i) => trace!(
-                            "or {}, {}, 0x{i:0>8x}",
-                            Self::mnemonic(dst),
-                            Self::mnemonic(a)
-                        ),
+                match imm {
+                    Some(i) => trace!(
+                        "or {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
 
-                        None => trace!(
-                            "or {}, {}, {}",
-                            Self::mnemonic(dst),
-                            Self::mnemonic(a),
-                            Self::mnemonic(b)
-                        ),
-                    }
+                    None => trace!(
+                        "or {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
                 }
 
                 let a = self.gp.get(a)?;
