@@ -4,9 +4,9 @@ use std::{
 };
 
 use bytemuck::{AnyBitPattern, NoUninit};
-use log::{debug, trace};
+use log::{Level, debug, log_enabled, trace};
 
-use crate::{BitSize, instruction::Instruction};
+use crate::{BitSize, instruction::Instruction, utils::Disp};
 
 #[derive(Debug, Copy, Clone, thiserror::Error)]
 pub enum CpuError {
@@ -37,36 +37,32 @@ impl Cpu {
                 process::exit(val as _);
             }
 
-            // pr {reg}
-            (0, _, 0x2, a, _, None) => {
-                trace!("pr {}", Self::mnemonic(a));
+            // pr {reg} / pr {imm}
+            (0, _, 0x2, a, _, imm) => {
+                if log_enabled!(Level::Trace) {
+                    match imm {
+                        Some(i) => trace!("pr 0x{i:0>8x}"),
+                        None => trace!("pr {}", Self::mnemonic(a)),
+                    }
+                }
+
                 let val = self.gp.get(a)?;
-                let bytes = val.to_le_bytes();
+                let bytes = imm.unwrap_or(val).to_le_bytes();
                 let c = str::from_utf8(&bytes).unwrap_or("�");
                 print!("{c}");
             }
 
-            // pr {imm}
-            (0, _, 0x2, _, _, Some(i)) => {
-                trace!("pr 0x{i:0>8x}");
-                let bytes = i.to_le_bytes();
-                let c = str::from_utf8(&bytes).unwrap_or("�");
-                print!("{c}");
-            }
+            // epr {reg} / epr {imm}
+            (0, _, 0x3, a, _, imm) => {
+                if log_enabled!(Level::Trace) {
+                    match imm {
+                        Some(i) => trace!("epr 0x{i:0>8x}"),
+                        None => trace!("epr {}", Self::mnemonic(a)),
+                    }
+                }
 
-            // epr {reg}
-            (0, _, 0x3, a, _, None) => {
-                trace!("epr {}", Self::mnemonic(a));
                 let val = self.gp.get(a)?;
-                let bytes = val.to_le_bytes();
-                let c = str::from_utf8(&bytes).unwrap_or("�");
-                eprint!("{c}");
-            }
-
-            // epr {imm}
-            (0, _, 0x3, _, _, Some(i)) => {
-                trace!("epr 0x{i:0>8x}");
-                let bytes = i.to_le_bytes();
+                let bytes = imm.unwrap_or(val).to_le_bytes();
                 let c = str::from_utf8(&bytes).unwrap_or("�");
                 eprint!("{c}");
             }
@@ -112,15 +108,15 @@ impl Cpu {
                 unimplemented!()
             }
 
-            // setgfx {reg}
-            (0, _, 0x7, a, _, None) => {
-                trace!("setgfx {}", Self::mnemonic(a));
-                unimplemented!()
-            }
+            // setgfx {reg} / setgfx {imm}
+            (0, _, 0x7, a, _, imm) => {
+                if log_enabled!(Level::Trace) {
+                    match imm {
+                        Some(i) => trace!("setgfx 0x{i:0>8x}"),
+                        None => trace!("setgfx {}", Self::mnemonic(a)),
+                    }
+                }
 
-            // setgfx {imm}
-            (0, _, 0x7, _, _, Some(i)) => {
-                trace!("setgfx 0x{i:0>8x}");
                 unimplemented!()
             }
 
@@ -130,26 +126,81 @@ impl Cpu {
                 unimplemented!()
             }
 
-            // sleep {reg}, {reg}
-            (0, _, 0x9, a, b, None) => {
-                trace!("sleep {}, {}", Self::mnemonic(a), Self::mnemonic(b));
+            // sleep {reg}, {reg} / sleep {imm}
+            (0, _, 0x9, a, b, imm) => {
+                if log_enabled!(Level::Trace) {
+                    match imm {
+                        Some(i) => trace!("sleep {i}"),
+                        None => trace!("sleep {}, {}", Self::mnemonic(a), Self::mnemonic(b)),
+                    }
+                }
+
                 let val = self.gp.get(b)?.to_be_bytes();
                 let val2 = self.gp.get(a)?.to_be_bytes();
 
-                let val = u64::from_be_bytes([
-                    val2[3], val2[2], val2[1], val2[0], val[3], val[2], val[1], val[0],
-                ]);
+                let val = imm.map(|i| i as u64).unwrap_or_else(|| {
+                    u64::from_be_bytes([
+                        val2[3], val2[2], val2[1], val2[0], val[3], val[2], val[1], val[0],
+                    ])
+                });
 
                 thread::sleep(Duration::from_micros(val));
             }
 
-            // sleep {imm}
-            (0, _, 0x9, _, _, Some(i)) => {
-                trace!("sleep {i}");
-                thread::sleep(Duration::from_micros(i as u64));
+            // TODO: load / str ops
+
+            // nand {reg}, {reg}, {reg}
+            (1, dst, 0x0, a, b, imm) => {
+                if log_enabled!(Level::Trace) {
+                    match imm {
+                        Some(i) => trace!(
+                            "nand {}, {}, 0x{i:0>8x}",
+                            Self::mnemonic(dst),
+                            Self::mnemonic(a)
+                        ),
+
+                        None => trace!(
+                            "nand {}, {}, {}",
+                            Self::mnemonic(dst),
+                            Self::mnemonic(a),
+                            Self::mnemonic(b)
+                        ),
+                    }
+                }
+
+                let a = self.gp.get(a)?;
+                let b = self.gp.get(b)?;
+                let b = imm.unwrap_or(b);
+
+                self.gp.set(dst, !(a & b))?;
             }
 
-            // TODO: load / str ops
+            // or {reg}, {reg}, {reg}
+            (1, dst, 0x1, a, b, imm) => {
+                if log_enabled!(Level::Trace) {
+                    match imm {
+                        Some(i) => trace!(
+                            "or {}, {}, 0x{i:0>8x}",
+                            Self::mnemonic(dst),
+                            Self::mnemonic(a)
+                        ),
+
+                        None => trace!(
+                            "or {}, {}, {}",
+                            Self::mnemonic(dst),
+                            Self::mnemonic(a),
+                            Self::mnemonic(b)
+                        ),
+                    }
+                }
+
+                let a = self.gp.get(a)?;
+                let b = self.gp.get(b)?;
+                let b = imm.unwrap_or(b);
+
+                self.gp.set(dst, a | b)?;
+            }
+
             _ => unimplemented!(),
         }
 
