@@ -19,6 +19,7 @@ pub enum InstError {
     WrongSize(usize),
 }
 
+#[derive(Debug)]
 pub struct Instruction {
     pub mode: u8,
     pub dst: u8,
@@ -39,9 +40,9 @@ impl Instruction {
         let a = inst[2];
         let b = inst[3];
 
-        let mode = ctrl.rotate_left(2);
-        let is_imm = ((ctrl >> 5) & 0b001) == 1;
-        let dst = ctrl & 0b00011111;
+        let mode = ctrl.rotate_left(2) & 0b11;
+        let is_imm = ((ctrl >> 5) & 0b1) == 1;
+        let dst = ctrl & 0b11111;
 
         let imm = if is_imm {
             if inst.len() < 8 {
