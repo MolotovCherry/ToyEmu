@@ -272,6 +272,16 @@
     inc {d: register} => (1`2 @ 0b0 @ d`5) @ 0x0d @ 0x00 @ 0x00
     dec {d: register} => (1`2 @ 0b0 @ d`5) @ 0x0e @ 0x00 @ 0x00
 
+    sl {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x0f @ a @ b
+    sl {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x0f @ 0x00 @ 0x00 @ i
+
+    sb {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x10 @ a @ b
+    sb {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x10 @ 0x00 @ 0x00 @ i
+
     neg {a: register}, {b: register} => asm { sub {a}, zr, {b} }
     neg {a: register}, {b: immediate} => asm { sub {a}, zr, {b} }
 

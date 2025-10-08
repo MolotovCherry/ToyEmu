@@ -500,6 +500,52 @@ impl Cpu {
                 self.gp.set_reg(dst, a)?;
             }
 
+            // sl {reg}, {reg}, {reg}
+            (1, dst, 0xf, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "sl {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "sl {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)? as i32;
+                let b = self.gp.get_reg(b)? as i32;
+
+                self.gp.set_reg(dst, (a < b) as _)?;
+            }
+
+            // sb {reg}, {reg}, {reg}
+            (1, dst, 0x10, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "sb {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "sb {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = self.gp.get_reg(b)?;
+
+                self.gp.set_reg(dst, (a < b) as _)?;
+            }
+
             //
             // CONDITIONALS
             //
