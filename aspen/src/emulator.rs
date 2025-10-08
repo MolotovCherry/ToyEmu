@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests;
 
-use std::convert::Infallible;
 use std::sync::mpsc::{TryRecvError, channel};
 
 use crate::BitSize;
@@ -26,15 +25,18 @@ pub struct Emulator {
 
 impl Emulator {
     pub fn new(program: &[u8]) -> Result<Self, EmuError> {
-        let mut mem = Memory::new()?;
-        mem[..program.len() as BitSize].copy_from_slice(program);
-
-        let this = Self {
+        let mut this = Self {
             cpu: Cpu::default(),
-            mem,
+            mem: Memory::new()?,
         };
 
+        this.write_program(program);
+
         Ok(this)
+    }
+
+    fn write_program(&mut self, program: &[u8]) {
+        self.mem[..program.len() as BitSize].copy_from_slice(program);
     }
 
     pub fn run(&mut self) -> Result<u32, EmuError> {

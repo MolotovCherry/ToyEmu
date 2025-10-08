@@ -1385,9 +1385,4 @@ impl Registers {
 
         Ok(elem)
     }
-
-    /// zero all registers
-    pub fn zeroize(&mut self) {
-        self.array_mut().fill(0);
-    }
 }
