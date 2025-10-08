@@ -274,6 +274,11 @@
         (1`2 @ 0b0 @ d`5) @ 0x0e @ a @ b
     irem {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x0e @ a @ 0x00 @ i
+        
+    asr {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x18 @ a @ b
+    asr {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x18 @ a @ 0x00 @ i
 
     ; extra
 

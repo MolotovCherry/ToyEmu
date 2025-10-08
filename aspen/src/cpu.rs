@@ -719,6 +719,31 @@ impl Cpu {
                 self.gp.set_reg(dst, (a >= b) as _)?;
             }
 
+            // asr {reg}, {reg}, {reg}
+            (1, dst, 0x18, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "asr {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "asr {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                // rust performs arithmetic shift right
+                // when args are signed
+                let a = self.gp.get_reg(a)? as i32;
+                let b = self.gp.get_reg(b)? as i32;
+
+                self.gp.set_reg(dst, (a >> b) as u32)?;
+            }
+
             //
             // CONDITIONALS
             //
