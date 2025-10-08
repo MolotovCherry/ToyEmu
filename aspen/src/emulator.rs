@@ -8,7 +8,7 @@ use crate::cpu::{Cpu, CpuError};
 use crate::instruction::{InstError, Instruction};
 use crate::memory::{MemError, Memory};
 
-#[derive(Debug, Copy, Clone, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum EmuError {
     #[error("{0}")]
     Mem(#[from] MemError),

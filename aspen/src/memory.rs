@@ -6,24 +6,27 @@ use std::{
 use windows::Win32::{
     Foundation::{GetLastError, WIN32_ERROR},
     System::Memory::{
-        MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE, VirtualAlloc, VirtualFree,
+        MEM_COMMIT, MEM_DECOMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE, VirtualAlloc,
+        VirtualFree,
     },
 };
 
 use crate::BitSize;
 
-#[derive(Debug, Copy, Clone, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum MemError {
     #[error("Invalid access: size {0} @ 0x{1:08x}")]
     InvalidAddr(BitSize, BitSize),
     #[error("Alloc failed: {0:?}")]
     Alloc(WIN32_ERROR),
+    #[error("Winapi Error: {0}")]
+    WinApi(#[from] windows::core::Error),
 }
 
 const MEM_SIZE: usize = BitSize::MAX as usize;
 
 pub struct Memory {
-    data: &'static mut [u8; MEM_SIZE],
+    data: *mut [u8; MEM_SIZE],
 }
 
 unsafe impl Send for Memory {}
@@ -35,7 +38,7 @@ impl<R: RangeBounds<BitSize>> Index<R> for Memory {
         let start = index.start_bound().map(|u| *u as usize);
         let end = index.end_bound().map(|u| *u as usize);
 
-        &self.data[(start, end)]
+        &self.data()[(start, end)]
     }
 }
 
@@ -44,14 +47,14 @@ impl<R: RangeBounds<BitSize>> IndexMut<R> for Memory {
         let start = index.start_bound().map(|u| *u as usize);
         let end = index.end_bound().map(|u| *u as usize);
 
-        &mut self.data[(start, end)]
+        &mut self.data_mut()[(start, end)]
     }
 }
 
 impl Memory {
     pub fn new() -> Result<Self, MemError> {
         #[rustfmt::skip]
-        let alloc = unsafe {
+        let ptr = unsafe {
             VirtualAlloc(
                 None,
                 MEM_SIZE,
@@ -60,7 +63,7 @@ impl Memory {
             )
         };
 
-        if alloc.is_null() {
+        if ptr.is_null() {
             let err = unsafe { GetLastError() };
             return Err(MemError::Alloc(err));
         }
@@ -68,8 +71,10 @@ impl Memory {
         // SAFETY:
         // alloc is BitSize::MAX big (above)
         // we also already checked for a failed call
-        let data = unsafe { &mut *alloc.cast::<[u8; MEM_SIZE]>() };
-        let this = Self { data };
+        // therefore this cast is valid
+        let this = Self {
+            data: ptr.cast::<[u8; MEM_SIZE]>(),
+        };
 
         Ok(this)
     }
@@ -99,7 +104,7 @@ impl Memory {
         let start = r.start_bound().map(|u| *u as usize);
         let end = r.end_bound().map(|u| *u as usize);
 
-        self.data.get((start, end))
+        self.data().get((start, end))
     }
 
     #[inline]
@@ -107,7 +112,7 @@ impl Memory {
         let start = r.start_bound().map(|u| *u as usize);
         let end = r.end_bound().map(|u| *u as usize);
 
-        self.data.get_mut((start, end))
+        self.data_mut().get_mut((start, end))
     }
 
     /// Validates addr is valid for size and also allocates if needed to make access possible
@@ -124,11 +129,63 @@ impl Memory {
             Ok(())
         }
     }
+
+    /// Zeroes memory
+    pub fn zeroize(&mut self) -> Result<(), MemError> {
+        let ptr = self.data.cast::<c_void>();
+
+        // SAFETY: This call is unique cause &mut self
+
+        // here we will zeroize it by decommitting and recommitting
+        // without removing the actual allocation itself
+        // when we access memory again after recommit, it will be zeroed
+
+        unsafe {
+            VirtualFree(ptr, 0, MEM_DECOMMIT)?;
+        }
+
+        #[rustfmt::skip]
+        let ptr = unsafe {
+            VirtualAlloc(
+                Some(ptr),
+                MEM_SIZE,
+                MEM_COMMIT,
+                PAGE_READWRITE
+            )
+        };
+
+        if ptr.is_null() {
+            let err = unsafe { GetLastError() };
+            return Err(MemError::Alloc(err));
+        }
+
+        Ok(())
+    }
+
+    fn data_mut(&mut self) -> &mut [u8; MEM_SIZE] {
+        // SAFETY:
+        // This ptr is always valid
+        // and was created being MEM_SIZE big
+        //
+        // As for & vs &mut concerns, this is already protected
+        // by borrowing from self properly
+        unsafe { &mut *self.data }
+    }
+
+    fn data(&self) -> &[u8; MEM_SIZE] {
+        // SAFETY:
+        // This ptr is always valid
+        // and was created being MEM_SIZE big
+        //
+        // As for & vs &mut concerns, this is already protected
+        // by borrowing from self properly
+        unsafe { &*self.data }
+    }
 }
 
 impl Drop for Memory {
     fn drop(&mut self) {
-        let ptr = self.data.as_ptr().cast::<c_void>().cast_mut();
+        let ptr = self.data.cast::<c_void>();
 
         let res = unsafe { VirtualFree(ptr, 0, MEM_RELEASE) };
 

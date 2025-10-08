@@ -1,13 +1,13 @@
 use std::{
     ops::{Deref, DerefMut},
-    sync::{Mutex, MutexGuard},
+    sync::{LazyLock, Mutex, MutexGuard},
 };
 
 use serial_test::serial;
 
 pub use super::*;
 
-struct EmuGuard<'a>(Emulator, #[allow(dead_code)] MutexGuard<'a, ()>);
+struct EmuGuard<'a>(MutexGuard<'a, Emulator>);
 
 impl Deref for EmuGuard<'_> {
     type Target = Emulator;
@@ -23,11 +23,21 @@ impl DerefMut for EmuGuard<'_> {
     }
 }
 
-fn run(asm: &str) -> (EmuGuard<'_>, u32) {
-    static LOCK: Mutex<()> = Mutex::new(());
+impl Drop for EmuGuard<'_> {
+    fn drop(&mut self) {
+        self.cpu.zeroize();
+        self.mem.zeroize().expect("zeroize to succeed");
+    }
+}
 
-    // important. this'll keep us from allocating > 1 4gb alloc at a time
-    let _guard = LOCK.lock().unwrap();
+fn run(asm: &str) -> (EmuGuard<'_>, u32) {
+    static LOCK: LazyLock<Mutex<Emulator>> =
+        LazyLock::new(|| Mutex::new(Emulator::new(&[]).expect("creation to succeed")));
+
+    LOCK.clear_poison();
+
+    // important. this will keep it synchronous
+    let mut guard = LOCK.lock().unwrap();
 
     #[rustfmt::skip]
     let asm = format!("
@@ -36,18 +46,29 @@ fn run(asm: &str) -> (EmuGuard<'_>, u32) {
     ");
 
     let data = graft::assemble(&asm).expect("assemblage to succeed");
-    let mut emu = Emulator::new(&data).expect("emulator to be created");
 
-    let code = emu.run().expect("run to succeed");
+    guard.write_program(&data);
 
-    (EmuGuard(emu, _guard), code)
+    let code = guard.run().expect("run to succeed");
+
+    (EmuGuard(guard), code)
 }
 
 #[test]
 #[serial]
-fn test() {
-    let (emu, _) = run("mov t0, 5");
-    assert_eq!(emu.cpu.gp.t0, 5);
+fn test_hlt() {
+    {
+        let (_, code) = run("hlt");
+        assert_eq!(code, 0);
+    }
+
+    {
+        let (_, code) = run("
+            mov t0, 5
+            hlt t0
+        ");
+        assert_eq!(code, 5);
+    }
 }
 
 #[test]

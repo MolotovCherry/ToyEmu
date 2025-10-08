@@ -1215,6 +1215,13 @@ impl Cpu {
             _ => "<unkn>",
         }
     }
+
+    /// zero all registers
+    pub fn zeroize(&mut self) {
+        self.gfx = 0;
+        self.pc = 0;
+        self.gp = Registers::default();
+    }
 }
 
 #[derive(Debug, Copy, Clone, thiserror::Error)]
