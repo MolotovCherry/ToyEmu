@@ -1217,6 +1217,7 @@ impl Cpu {
     }
 
     /// zero all registers
+    #[allow(unused)]
     pub fn zeroize(&mut self) {
         self.gfx = 0;
         self.pc = 0;

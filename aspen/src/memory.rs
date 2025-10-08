@@ -131,6 +131,7 @@ impl Memory {
     }
 
     /// Zeroes memory
+    #[allow(unused)]
     pub fn zeroize(&mut self) -> Result<(), MemError> {
         let ptr = self.data.cast::<c_void>();
 
