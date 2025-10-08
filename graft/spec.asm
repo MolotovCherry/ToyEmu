@@ -315,6 +315,21 @@
     ja {a: register}, {b:register}, {d: register}   => (2`2 @ 0b1 @ d`5) @ 0x0a @ a @ b
     ja {a: register}, {b:register}, {i: immediate}  => (2`2 @ 0b1 @ 0`5) @ 0x0a @ a @ b @ i
 
+    ; zero instructions
+
+    jez {a: register}, {d: register} => asm { je a, zr, d }
+    jez {a: register}, {i: immediate} => asm { je a, zr, i }
+    jnez {a: register}, {d: register} => asm { jne a, zr, d }
+    jnez {a: register}, {i: immediate} => asm { jne a, zr, i }
+    jlz {a: register}, {d: register} => asm { jl a, zr, d }
+    jlz {a: register}, {i: immediate} => asm { jl a, zr, i }
+    jgez {a: register}, {d: register} => asm { jge a, zr, d }
+    jgez {a: register}, {i: immediate} => asm { jge a, zr, i }
+    jlez {a: register}, {d: register} => asm { jle a, zr, d }
+    jlez {a: register}, {i: immediate} => asm { jle a, zr, i }
+    jgz {a: register}, {d: register} => asm { jg a, zr, d }
+    jgz {a: register}, {i: immediate} => asm { jg a, zr, i }
+
     ;
     ; stack
     ;
