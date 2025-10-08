@@ -581,7 +581,7 @@ impl Cpu {
                 self.gp.set_reg(dst, a)?;
             }
 
-            // se {reg}, {reg}, {reg}
+            // se {reg}, {reg}, {reg} / se {reg}, {reg}, {imm}
             (1, dst, 0x12, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
@@ -599,12 +599,15 @@ impl Cpu {
                 }
 
                 let a = self.gp.get_reg(a)?;
-                let b = self.gp.get_reg(b)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
 
                 self.gp.set_reg(dst, (a == b) as _)?;
             }
 
-            // sne {reg}, {reg}, {reg}
+            // sne {reg}, {reg}, {reg} / sne {reg}, {reg}, {imm}
             (1, dst, 0x13, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
@@ -622,12 +625,15 @@ impl Cpu {
                 }
 
                 let a = self.gp.get_reg(a)?;
-                let b = self.gp.get_reg(b)?;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                };
 
                 self.gp.set_reg(dst, (a != b) as _)?;
             }
 
-            // sl {reg}, {reg}, {reg}
+            // sl {reg}, {reg}, {reg} / sl {reg}, {reg}, {imm}
             (1, dst, 0x14, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
@@ -645,12 +651,15 @@ impl Cpu {
                 }
 
                 let a = self.gp.get_reg(a)? as i32;
-                let b = self.gp.get_reg(b)? as i32;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                } as i32;
 
                 self.gp.set_reg(dst, (a < b) as _)?;
             }
 
-            // sle {reg}, {reg}, {reg}
+            // sle {reg}, {reg}, {reg} / sle {reg}, {reg}, {imm}
             (1, dst, 0x15, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
@@ -668,12 +677,15 @@ impl Cpu {
                 }
 
                 let a = self.gp.get_reg(a)? as i32;
-                let b = self.gp.get_reg(b)? as i32;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                } as i32;
 
                 self.gp.set_reg(dst, (a <= b) as _)?;
             }
 
-            // sg {reg}, {reg}, {reg}
+            // sg {reg}, {reg}, {reg} / sg {reg}, {reg}, {imm}
             (1, dst, 0x16, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
@@ -691,12 +703,15 @@ impl Cpu {
                 }
 
                 let a = self.gp.get_reg(a)? as i32;
-                let b = self.gp.get_reg(b)? as i32;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                } as i32;
 
                 self.gp.set_reg(dst, (a > b) as _)?;
             }
 
-            // sge {reg}, {reg}, {reg}
+            // sge {reg}, {reg}, {reg} / sge {reg}, {reg}, {imm}
             (1, dst, 0x17, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
@@ -714,12 +729,15 @@ impl Cpu {
                 }
 
                 let a = self.gp.get_reg(a)? as i32;
-                let b = self.gp.get_reg(b)? as i32;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                } as i32;
 
                 self.gp.set_reg(dst, (a >= b) as _)?;
             }
 
-            // asr {reg}, {reg}, {reg}
+            // asr {reg}, {reg}, {reg} / asr {reg}, {reg}, {imm}
             (1, dst, 0x18, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
@@ -739,7 +757,10 @@ impl Cpu {
                 // rust performs arithmetic shift right
                 // when args are signed
                 let a = self.gp.get_reg(a)? as i32;
-                let b = self.gp.get_reg(b)? as i32;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                } as i32;
 
                 self.gp.set_reg(dst, (a >> b) as u32)?;
             }
