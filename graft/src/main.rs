@@ -1,4 +1,4 @@
-use std::{env, fs};
+use std::{env, fs, path::Path};
 
 use graft::assemble;
 
@@ -21,7 +21,14 @@ fn main() {
         }
     };
 
-    let data = match assemble(&input_file) {
+    let filename = Path::new(&input_file).file_name();
+    let Some(filename) = filename else {
+        eprintln!("failed to get input filename. did you input the correct path?");
+        return;
+    };
+    let filename = &*filename.to_string_lossy();
+
+    let data = match assemble(filename, &input_file, true) {
         Ok(bin) => bin,
         Err(e) => {
             eprintln!("{e}");

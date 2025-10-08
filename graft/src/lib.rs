@@ -1,10 +1,10 @@
-use std::io::BufWriter;
+use std::{fmt::Debug, io::BufWriter};
 
 use customasm::{asm, diagn, util};
 
 static SPEC: &str = include_str!(r"../spec.asm");
 
-#[derive(Debug, thiserror::Error)]
+#[derive(thiserror::Error)]
 pub enum AsmError {
     #[error("failed to flush BufWriter")]
     BufWriter,
@@ -16,7 +16,13 @@ pub enum AsmError {
     NoOutput,
 }
 
-pub fn assemble(asm: &str) -> Result<Vec<u8>, AsmError> {
+impl Debug for AsmError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+pub fn assemble(filename: &str, asm: &str, error_colors: bool) -> Result<Vec<u8>, AsmError> {
     // quite sad we have to leak this cause of the api
     #[rustfmt::skip]
     let input_file = format!(r#"
@@ -25,22 +31,20 @@ pub fn assemble(asm: &str) -> Result<Vec<u8>, AsmError> {
 {asm}
     "#).leak().trim();
 
-    let input_filename = "<input>.asm";
-
     let mut report = diagn::Report::new();
     let mut fileserver = util::FileServerReal::new();
     fileserver.add("spec.asm", SPEC);
-    fileserver.add(input_filename, input_file);
+    fileserver.add(filename, input_file);
 
     let opts = asm::AssemblyOptions::new();
 
-    let assembly = asm::assemble(&mut report, &opts, &mut fileserver, &[input_filename]);
+    let assembly = asm::assemble(&mut report, &opts, &mut fileserver, &[filename]);
 
     let data = assembly.output.map(|o| o.format_binary());
 
     if report.has_errors() {
         let mut errors = BufWriter::new(Vec::new());
-        report.print_all(&mut errors, &fileserver, true);
+        report.print_all(&mut errors, &fileserver, error_colors);
 
         let Ok(errors) = errors.into_inner() else {
             return Err(AsmError::BufWriter);

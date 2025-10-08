@@ -4,6 +4,7 @@ use std::{
 };
 
 use serial_test::serial;
+use unindent::unindent;
 
 pub use super::*;
 
@@ -39,13 +40,17 @@ fn run(asm: &str) -> (EmuGuard<'_>, u32) {
     // important. this will keep it synchronous
     let mut guard = LOCK.lock().unwrap();
 
+    let asm = unindent(asm.trim());
+
     #[rustfmt::skip]
     let asm = format!("
-        {asm}
-        hlt
-    ");
+{asm}
 
-    let data = graft::assemble(&asm).expect("assemblage to succeed");
+; auto inserted hlt
+hlt
+");
+
+    let data = graft::assemble("<input>.asm", asm.trim(), false).expect("assemblage to succeed");
 
     guard.write_program(&data);
 
