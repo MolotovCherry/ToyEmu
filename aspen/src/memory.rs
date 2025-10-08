@@ -1,6 +1,6 @@
 use std::{
     ffi::c_void,
-    ops::{Bound, Index, IndexMut, RangeBounds},
+    ops::{Index, IndexMut, RangeBounds},
 };
 
 use windows::Win32::{
@@ -92,6 +92,22 @@ impl Memory {
         let n = N::from_be_bytes(data);
 
         Ok(n)
+    }
+
+    #[inline]
+    pub fn view<R: RangeBounds<BitSize>>(&self, r: R) -> Option<&[u8]> {
+        let start = r.start_bound().map(|u| *u as usize);
+        let end = r.end_bound().map(|u| *u as usize);
+
+        self.data.get((start, end))
+    }
+
+    #[inline]
+    pub fn view_mut<R: RangeBounds<BitSize>>(&mut self, r: R) -> Option<&mut [u8]> {
+        let start = r.start_bound().map(|u| *u as usize);
+        let end = r.end_bound().map(|u| *u as usize);
+
+        self.data.get_mut((start, end))
     }
 
     /// Validates addr is valid for size and also allocates if needed to make access possible

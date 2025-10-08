@@ -1,5 +1,4 @@
 use std::{
-    ops::{Deref, DerefMut, RangeBounds},
     process, slice, thread,
     time::{Duration, SystemTime},
 };
@@ -48,8 +47,10 @@ impl Cpu {
                 let low = self.gp.get_reg(a)?;
                 let high = self.gp.get_reg(b)?;
 
-                let data = mem[low..high].as_bstr();
-                print!("{data}");
+                if let Some(view) = mem.view(low..high) {
+                    let data = view.as_bstr();
+                    print!("{data}");
+                }
             }
 
             // epr {reg}, {reg}
