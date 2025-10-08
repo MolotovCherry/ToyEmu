@@ -1,5 +1,7 @@
 use std::{
-    process, slice, thread,
+    slice,
+    sync::mpsc::Sender,
+    thread,
     time::{Duration, SystemTime},
 };
 
@@ -28,7 +30,12 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn process(&mut self, inst: Instruction, mem: &mut Memory) -> Result<(), CpuError> {
+    pub fn process(
+        &mut self,
+        inst: Instruction,
+        mem: &mut Memory,
+        stop_tx: &Sender<u32>,
+    ) -> Result<(), CpuError> {
         match (inst.mode, inst.dst, inst.op_code, inst.a, inst.b, inst.imm) {
             // nop
             (0, _, 0x00, _, _, None) => trace!("nop"),
@@ -37,7 +44,8 @@ impl Cpu {
             (0, _, 0x01, a, _, None) => {
                 trace!("hlt {}", Self::mnemonic(a));
                 let val = self.gp.get_reg(a)?;
-                process::exit(val as _);
+                stop_tx.send(val).expect("send to succeed");
+                return Ok(());
             }
 
             // pr {reg}, {reg}
@@ -1376,5 +1384,10 @@ impl Registers {
         let elem = *self.array().get(reg as usize).ok_or(RegError(reg))?;
 
         Ok(elem)
+    }
+
+    /// zero all registers
+    pub fn zeroize(&mut self) {
+        self.array_mut().fill(0);
     }
 }

@@ -10,3 +10,6 @@ env_logger = "0.11.8"
 log = "0.4.28"
 thiserror = "2.0.17"
 windows = { version = "0.62.2", features = ["Win32_System_Memory"] }
+
+[dev-dependencies]
+graft = { path = "../graft" }

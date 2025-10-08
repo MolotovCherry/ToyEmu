@@ -1,4 +1,8 @@
+#[cfg(test)]
+mod tests;
+
 use std::convert::Infallible;
+use std::sync::mpsc::{TryRecvError, channel};
 
 use crate::BitSize;
 use crate::cpu::{Cpu, CpuError};
@@ -33,11 +37,24 @@ impl Emulator {
         Ok(this)
     }
 
-    pub fn run(&mut self) -> Result<Infallible, EmuError> {
-        loop {
+    pub fn run(&mut self) -> Result<u32, EmuError> {
+        let (stop_tx, stop_recv) = channel();
+
+        let code = loop {
             let inst = self.next_inst()?;
-            self.cpu.process(inst, &mut self.mem)?;
-        }
+
+            self.cpu.process(inst, &mut self.mem, &stop_tx)?;
+
+            match stop_recv.try_recv() {
+                Ok(c) => break c,
+                Err(TryRecvError::Empty) => (),
+                Err(TryRecvError::Disconnected) => {
+                    unreachable!("stop_tx unexpectedly disconnected")
+                }
+            }
+        };
+
+        Ok(code)
     }
 
     fn next_inst(&self) -> Result<Instruction, InstError> {
