@@ -985,7 +985,7 @@ impl Cpu {
             0x1e => "a6",
             0x1f => "a7",
 
-            _ => unreachable!("can't log mnemonic. this is a bug"),
+            _ => "<unkn>",
         }
     }
 }
