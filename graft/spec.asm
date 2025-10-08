@@ -250,55 +250,70 @@
     mul {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x09 @ a @ 0x00 @ i
 
-    div {d: register}, {a: register}, {b: register} =>
+    imul {d: register}, {a: register}, {b: register} =>
         (1`2 @ 0b0 @ d`5) @ 0x0a @ a @ b
-    div {d: register}, {a: register}, {i: immediate} =>
+    imul {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x0a @ a @ 0x00 @ i
 
-    rem {d: register}, {a: register}, {b: register} =>
+    div {d: register}, {a: register}, {b: register} =>
         (1`2 @ 0b0 @ d`5) @ 0x0b @ a @ b
-    rem {d: register}, {a: register}, {i: immediate} =>
+    div {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x0b @ a @ 0x00 @ i
+
+    idiv {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x0c @ a @ b
+    idiv {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x0c @ a @ 0x00 @ i
+
+    rem {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x0d @ a @ b
+    rem {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x0d @ a @ 0x00 @ i
+
+    irem {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x0e @ a @ b
+    irem {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x0e @ a @ 0x00 @ i
 
     ; extra
 
     mov {d: register}, {a: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x0c @ a @ 0x00
+        (1`2 @ 0b0 @ d`5) @ 0x0f @ a @ 0x00
     mov {d: register}, {i: immediate} =>
-        (1`2 @ 0b1 @ d`5) @ 0x0c @ 0x00 @ 0x00 @ i
-
-    inc {d: register} => (1`2 @ 0b0 @ d`5) @ 0x0d @ 0x00 @ 0x00
-    dec {d: register} => (1`2 @ 0b0 @ d`5) @ 0x0e @ 0x00 @ 0x00
-
-    se {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x0f @ a @ b
-    se {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x0f @ 0x00 @ 0x00 @ i
 
-    sne {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x10 @ a @ b
-    sne {d: register}, {a: register}, {i: immediate} =>
-        (1`2 @ 0b1 @ d`5) @ 0x10 @ 0x00 @ 0x00 @ i
+    inc {d: register} => (1`2 @ 0b0 @ d`5) @ 0x10 @ 0x00 @ 0x00
+    dec {d: register} => (1`2 @ 0b0 @ d`5) @ 0x11 @ 0x00 @ 0x00
 
-    sl {d: register}, {a: register}, {b: register} =>
-        (1`2 @ 0b0 @ d`5) @ 0x11 @ a @ b
-    sl {d: register}, {a: register}, {i: immediate} =>
-        (1`2 @ 0b1 @ d`5) @ 0x11 @ 0x00 @ 0x00 @ i
-
-    sle {d: register}, {a: register}, {b: register} =>
+    se {d: register}, {a: register}, {b: register} =>
         (1`2 @ 0b0 @ d`5) @ 0x12 @ a @ b
-    sle {d: register}, {a: register}, {i: immediate} =>
+    se {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x12 @ 0x00 @ 0x00 @ i
 
-    sg {d: register}, {a: register}, {b: register} =>
+    sne {d: register}, {a: register}, {b: register} =>
         (1`2 @ 0b0 @ d`5) @ 0x13 @ a @ b
-    sg {d: register}, {a: register}, {i: immediate} =>
+    sne {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x13 @ 0x00 @ 0x00 @ i
 
-    sge {d: register}, {a: register}, {b: register} =>
+    sl {d: register}, {a: register}, {b: register} =>
         (1`2 @ 0b0 @ d`5) @ 0x14 @ a @ b
-    sge {d: register}, {a: register}, {i: immediate} =>
+    sl {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x14 @ 0x00 @ 0x00 @ i
+
+    sle {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x15 @ a @ b
+    sle {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x15 @ 0x00 @ 0x00 @ i
+
+    sg {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x16 @ a @ b
+    sg {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x16 @ 0x00 @ 0x00 @ i
+
+    sge {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x17 @ a @ b
+    sge {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x17 @ 0x00 @ 0x00 @ i
 
     sez {d: register}, {b: register} => asm { se {d}, {b}, zr }
     sez {d: register}, {b: immediate} => asm { se {d}, {b}, zr }

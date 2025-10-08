@@ -414,8 +414,34 @@ impl Cpu {
                 self.gp.set_reg(dst, a.wrapping_mul(b))?;
             }
 
-            // div {reg}, {reg}, {reg} / div {reg}, {reg}, {imm}
+            // imul {reg}, {reg}, {reg} / imul {reg}, {reg}, {imm}
             (1, dst, 0x0a, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "imul {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "imul {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)? as i32;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                } as i32;
+
+                self.gp.set_reg(dst, a.wrapping_mul(b) as u32)?;
+            }
+
+            // div {reg}, {reg}, {reg} / div {reg}, {reg}, {imm}
+            (1, dst, 0x0b, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
                         "div {}, {}, 0x{i:0>8x}",
@@ -442,8 +468,36 @@ impl Cpu {
                 self.gp.set_reg(dst, val)?;
             }
 
+            // idiv {reg}, {reg}, {reg} / idiv {reg}, {reg}, {imm}
+            (1, dst, 0x0c, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "idiv {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "idiv {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)? as i32;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                } as i32;
+
+                let val = if a != 0 { a.wrapping_div(b) } else { 0 };
+
+                self.gp.set_reg(dst, val as u32)?;
+            }
+
             // rem {reg}, {reg}, {reg} / rem {reg}, {reg}, {imm}
-            (1, dst, 0x0b, a, b, imm) => {
+            (1, dst, 0x0d, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
                         "rem {}, {}, 0x{i:0>8x}",
@@ -468,8 +522,34 @@ impl Cpu {
                 self.gp.set_reg(dst, a % b)?;
             }
 
+            // irem {reg}, {reg}, {reg} / rem {reg}, {reg}, {imm}
+            (1, dst, 0x0e, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "irem {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "irem {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)? as i32;
+                let b = match imm {
+                    Some(i) => i,
+                    None => self.gp.get_reg(b)?,
+                } as i32;
+
+                self.gp.set_reg(dst, (a % b) as u32)?;
+            }
+
             // mov {reg}, {reg} / mov {reg}, {imm}
-            (1, dst, 0x0c, a, _, imm) => {
+            (1, dst, 0x0f, a, _, imm) => {
                 match imm {
                     Some(i) => trace!("mov {}, 0x{i:0>8x}", Self::mnemonic(dst)),
                     None => trace!("mov {}, {}", Self::mnemonic(dst), Self::mnemonic(a)),
@@ -484,7 +564,7 @@ impl Cpu {
             }
 
             // inc {reg}
-            (1, dst, 0x0d, a, _, _) => {
+            (1, dst, 0x10, a, _, _) => {
                 trace!("inc {}", Self::mnemonic(dst));
 
                 let a = self.gp.get_reg(a)?.wrapping_add(1);
@@ -493,7 +573,7 @@ impl Cpu {
             }
 
             // dec {reg}
-            (1, dst, 0x0e, a, _, _) => {
+            (1, dst, 0x11, a, _, _) => {
                 trace!("dec {}", Self::mnemonic(dst));
 
                 let a = self.gp.get_reg(a)?.wrapping_sub(1);
@@ -502,7 +582,7 @@ impl Cpu {
             }
 
             // se {reg}, {reg}, {reg}
-            (1, dst, 0x0f, a, b, imm) => {
+            (1, dst, 0x12, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
                         "se {}, {}, 0x{i:0>8x}",
@@ -525,7 +605,7 @@ impl Cpu {
             }
 
             // sne {reg}, {reg}, {reg}
-            (1, dst, 0x10, a, b, imm) => {
+            (1, dst, 0x13, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
                         "sne {}, {}, 0x{i:0>8x}",
@@ -548,7 +628,7 @@ impl Cpu {
             }
 
             // sl {reg}, {reg}, {reg}
-            (1, dst, 0x11, a, b, imm) => {
+            (1, dst, 0x14, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
                         "sl {}, {}, 0x{i:0>8x}",
@@ -571,7 +651,7 @@ impl Cpu {
             }
 
             // sle {reg}, {reg}, {reg}
-            (1, dst, 0x12, a, b, imm) => {
+            (1, dst, 0x15, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
                         "sle {}, {}, 0x{i:0>8x}",
@@ -594,7 +674,7 @@ impl Cpu {
             }
 
             // sg {reg}, {reg}, {reg}
-            (1, dst, 0x13, a, b, imm) => {
+            (1, dst, 0x16, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
                         "sg {}, {}, 0x{i:0>8x}",
@@ -617,7 +697,7 @@ impl Cpu {
             }
 
             // sge {reg}, {reg}, {reg}
-            (1, dst, 0x14, a, b, imm) => {
+            (1, dst, 0x17, a, b, imm) => {
                 match imm {
                     Some(i) => trace!(
                         "sge {}, {}, 0x{i:0>8x}",
