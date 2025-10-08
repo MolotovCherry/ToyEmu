@@ -546,6 +546,98 @@ impl Cpu {
                 self.gp.set_reg(dst, (a < b) as _)?;
             }
 
+            // se {reg}, {reg}, {reg}
+            (1, dst, 0x11, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "se {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "se {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = self.gp.get_reg(b)?;
+
+                self.gp.set_reg(dst, (a == b) as _)?;
+            }
+
+            // sne {reg}, {reg}, {reg}
+            (1, dst, 0x12, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "sne {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "sne {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = self.gp.get_reg(b)?;
+
+                self.gp.set_reg(dst, (a != b) as _)?;
+            }
+
+            // sg {reg}, {reg}, {reg}
+            (1, dst, 0x13, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "sg {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "sg {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)? as i32;
+                let b = self.gp.get_reg(b)? as i32;
+
+                self.gp.set_reg(dst, (a > b) as _)?;
+            }
+
+            // sa {reg}, {reg}, {reg}
+            (1, dst, 0x14, a, b, imm) => {
+                match imm {
+                    Some(i) => trace!(
+                        "sa {}, {}, 0x{i:0>8x}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a)
+                    ),
+
+                    None => trace!(
+                        "sa {}, {}, {}",
+                        Self::mnemonic(dst),
+                        Self::mnemonic(a),
+                        Self::mnemonic(b)
+                    ),
+                }
+
+                let a = self.gp.get_reg(a)?;
+                let b = self.gp.get_reg(b)?;
+
+                self.gp.set_reg(dst, (a > b) as _)?;
+            }
+
             //
             // CONDITIONALS
             //
@@ -1106,10 +1198,9 @@ impl Default for Registers {
     }
 }
 
-impl Deref for Registers {
-    type Target = [BitSize];
-
-    fn deref(&self) -> &Self::Target {
+impl Registers {
+    #[inline]
+    fn array(&self) -> &[BitSize] {
         const {
             assert!(
                 size_of::<Self>().is_multiple_of(size_of::<BitSize>()),
@@ -1120,10 +1211,9 @@ impl Deref for Registers {
         let slice = slice::from_ref(self);
         bytemuck::must_cast_slice(slice)
     }
-}
 
-impl DerefMut for Registers {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+    #[inline]
+    fn array_mut(&mut self) -> &mut [BitSize] {
         const {
             assert!(
                 size_of::<Self>().is_multiple_of(size_of::<BitSize>()),
@@ -1134,9 +1224,7 @@ impl DerefMut for Registers {
         let slice = slice::from_mut(self);
         bytemuck::must_cast_slice_mut(slice)
     }
-}
 
-impl Registers {
     /// Set register based on index
     #[inline]
     pub fn set_reg(&mut self, reg: u8, val: BitSize) -> Result<(), RegError> {
@@ -1145,7 +1233,10 @@ impl Registers {
             return Ok(());
         }
 
-        let elem = self.get_mut(reg as usize).ok_or(RegError(reg))?;
+        let elem = self
+            .array_mut()
+            .get_mut(reg as usize)
+            .ok_or(RegError(reg))?;
 
         *elem = val;
 
@@ -1155,7 +1246,7 @@ impl Registers {
     /// Read register based on index
     #[inline]
     pub fn get_reg(&self, reg: u8) -> Result<BitSize, RegError> {
-        let elem = *self.get(reg as usize).ok_or(RegError(reg))?;
+        let elem = *self.array().get(reg as usize).ok_or(RegError(reg))?;
 
         Ok(elem)
     }

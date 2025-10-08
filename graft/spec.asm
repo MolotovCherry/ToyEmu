@@ -282,6 +282,39 @@
     sb {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x10 @ 0x00 @ 0x00 @ i
 
+    se {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x11 @ a @ b
+    se {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x11 @ 0x00 @ 0x00 @ i
+
+    sne {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x12 @ a @ b
+    sne {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x12 @ 0x00 @ 0x00 @ i
+
+    sg {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x13 @ a @ b
+    sg {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x13 @ 0x00 @ 0x00 @ i
+
+    sa {d: register}, {a: register}, {b: register} =>
+        (1`2 @ 0b0 @ d`5) @ 0x14 @ a @ b
+    sa {d: register}, {a: register}, {i: immediate} =>
+        (1`2 @ 0b1 @ d`5) @ 0x14 @ 0x00 @ 0x00 @ i
+
+    slz {d: register}, {b: register} => asm { sl {d}, {b}, zr }
+    slz {d: register}, {b: immediate} => asm { sl {d}, {b}, zr }
+    sbz {d: register}, {b: register} => asm { sb {d}, {b}, zr }
+    sbz {d: register}, {b: immediate} => asm { sb {d}, {b}, zr }
+    sez {d: register}, {b: register} => asm { se {d}, {b}, zr }
+    sez {d: register}, {b: immediate} => asm { se {d}, {b}, zr }
+    snez {d: register}, {b: register} => asm { sne {d}, {b}, zr }
+    snez {d: register}, {b: immediate} => asm { sne {d}, {b}, zr }
+    sgz {d: register}, {b: register} => asm { sg {d}, {b}, zr }
+    sgz {d: register}, {b: immediate} => asm { sg {d}, {b}, zr }
+    saz {d: register}, {b: register} => asm { sa {d}, {b}, zr }
+    saz {d: register}, {b: immediate} => asm { sa {d}, {b}, zr }
+
     neg {a: register}, {b: register} => asm { sub {a}, zr, {b} }
     neg {a: register}, {b: immediate} => asm { sub {a}, zr, {b} }
 
