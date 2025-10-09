@@ -9,6 +9,8 @@ use crate::instruction::{InstError, Instruction};
 use crate::memory::{MemError, Memory};
 use crate::sleep::u_sleep;
 
+pub const FREQ: Duration = Duration::from_micros(5);
+
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum EmuError {
     #[error("{0}")]
@@ -43,7 +45,6 @@ impl Emulator {
     pub fn run(&mut self) -> Result<(), EmuError> {
         let mut stop = false;
 
-        let freq = Duration::from_micros(5);
         loop {
             let mut clk = 1u32;
             let inst = self.next_inst()?;
@@ -55,7 +56,7 @@ impl Emulator {
             #[rustfmt::skip]
             if stop { break; };
 
-            let wait = freq * clk;
+            let wait = FREQ * clk;
             if elapsed < wait {
                 let left = wait.saturating_sub(elapsed);
                 u_sleep(left);

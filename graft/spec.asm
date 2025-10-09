@@ -124,8 +124,8 @@
     draw => (0`2 @ 0b0 @ 0`5) @ 0x08 @ 0x00 @ 0x00
 
     ; how much time to sleep in microseconds
-    sleep {a: register}, {b: register} => (0`2 @ 0b0 @ 0`5) @ 0x09 @ a @ b
-    sleep {i: immediate} => (0`2 @ 0b1 @ 0`5) @ 0x09 @ 0x00 @ 0x00 @ i
+    slp {a: register}, {b: register} => (0`2 @ 0b0 @ 0`5) @ 0x09 @ a @ b
+    slp {i: immediate} => (0`2 @ 0b1 @ 0`5) @ 0x09 @ 0x00 @ 0x00 @ i
 
     ; ld mem
 
@@ -273,7 +273,7 @@
         (1`2 @ 0b0 @ d`5) @ 0x0e @ a @ b
     irem {d: register}, {a: register}, {i: immediate} =>
         (1`2 @ 0b1 @ d`5) @ 0x0e @ a @ 0x00 @ i
-        
+
     asr {d: register}, {a: register}, {b: register} =>
         (1`2 @ 0b0 @ d`5) @ 0x18 @ a @ b
     asr {d: register}, {a: register}, {i: immediate} =>

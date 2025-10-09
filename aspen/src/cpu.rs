@@ -1,13 +1,10 @@
-use std::{
-    slice, thread,
-    time::{Duration, SystemTime},
-};
+use std::{slice, time::SystemTime};
 
 use bstr::ByteSlice;
 use bytemuck::{AnyBitPattern, NoUninit};
 use log::trace;
 
-use crate::{BitSize, instruction::Instruction, memory::Memory};
+use crate::{BitSize, emulator::FREQ, instruction::Instruction, memory::Memory};
 
 #[derive(Debug, Copy, Clone, thiserror::Error)]
 pub enum CpuError {
@@ -134,11 +131,11 @@ impl Cpu {
                 unimplemented!()
             }
 
-            // sleep {reg}, {reg} / sleep {imm}
+            // slp {reg}, {reg} / slp {imm}
             (0, _, 0x09, a, b, imm) => {
                 match imm {
-                    Some(i) => trace!("sleep {i}"),
-                    None => trace!("sleep {}, {}", Self::mnemonic(a), Self::mnemonic(b)),
+                    Some(i) => trace!("slp {i}"),
+                    None => trace!("slp {}, {}", Self::mnemonic(a), Self::mnemonic(b)),
                 }
 
                 let val = match imm {
@@ -148,12 +145,18 @@ impl Cpu {
                         let val2 = self.gp.get_reg(a)?.to_be_bytes();
 
                         u64::from_be_bytes([
-                            val2[3], val2[2], val2[1], val2[0], val[3], val[2], val[1], val[0],
+                            val2[0], val2[1], val2[2], val2[3], val[0], val[1], val[2], val[3],
                         ])
                     }
                 };
 
-                thread::sleep(Duration::from_micros(val));
+                if val > 0 {
+                    // add cycles consistent with frequency
+                    let fre = const { FREQ.as_micros() as u64 };
+                    // adjust the clock frequency scaled by our wait time
+                    // waits in multiples of FREQ
+                    *clk = val.max(fre).div_ceil(fre) as u32;
+                }
             }
 
             // TODO: load / str ops
@@ -1113,6 +1116,8 @@ impl Cpu {
                 };
 
                 slice.copy_from_slice(&a.to_be_bytes());
+
+                *clk = 2;
             }
 
             // pop {reg}
@@ -1123,6 +1128,8 @@ impl Cpu {
                 let data = BitSize::from_be_bytes(bytes.try_into().unwrap());
                 self.gp.sp = self.gp.sp.wrapping_add(size_of::<BitSize>() as _);
                 self.gp.set_reg(dst, data)?;
+
+                *clk = 2;
             }
 
             // call {reg}, call {imm}
@@ -1150,6 +1157,8 @@ impl Cpu {
                 // set pc to new loc
                 self.pc = jmp;
 
+                *clk = 3;
+
                 return Ok(());
             }
 
@@ -1165,6 +1174,8 @@ impl Cpu {
                 let ra = BitSize::from_be_bytes(bytes.try_into().unwrap());
                 self.gp.sp = self.gp.sp.wrapping_add(size_of::<BitSize>() as _);
                 self.gp.ra = ra;
+
+                *clk = 2;
 
                 return Ok(());
             }
