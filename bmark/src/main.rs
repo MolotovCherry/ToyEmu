@@ -39,10 +39,11 @@ fn main() {
         let elapsed = start.elapsed();
 
         println!(
-            "instrs = {}, elapsed = {:?}, ns/instr = {:.3?}",
+            "instrs = {}, elapsed = {:?}, ns/instr = {:.3?}, mips = {:.3?}",
             emu.cpu.clk,
             elapsed,
             elapsed.as_nanos() as f64 / emu.cpu.clk as f64,
+            emu.cpu.clk as f64 / elapsed.as_micros() as f64
         );
     };
 
@@ -58,9 +59,9 @@ fn main() {
             mov t0, 5
             mov t2, 0
             sl t5, t2, t0
+            mov s0, 100000000 ; 1e8
 
         loop0:
-            mov s0, 100000000 ; 1e8
             mov a0, 3
             mov a1, 7
             push t0
