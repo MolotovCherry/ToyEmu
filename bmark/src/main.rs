@@ -25,8 +25,8 @@ fn main() {
             .step_by(4096 /* min page size on modern oses */)
         {
             unsafe {
-            ptr::write_volatile(b, 1);
-            ptr::write_volatile(b, 0);
+                ptr::write_volatile(b, 1);
+                ptr::write_volatile(b, 0);
             }
         }
 
@@ -46,37 +46,40 @@ fn main() {
         );
     };
 
-    let emu = run! {
-        #addr 100
+    run! {
+        #addr 200
         helloworld:
             #d "Hello, world!\n"
 
-        helloworldLen = $ - helloworld
+            helloworldLen = $ - helloworld
 
         #addr 0
         _start:
-        mov t0, 5
-        mov t2, 0
-        sl t5, t2, t0
+            mov t0, 5
+            mov t2, 0
+            sl t5, t2, t0
 
-        mov a0, 3
-        mov a1, 7
-        push t0
-        call calculate
-        pop t0
+        loop0:
+            mov s0, 100000000 ; 1e8
+            mov a0, 3
+            mov a1, 7
+            push t0
+            call calculate
+            pop t0
 
-        mov t5, helloworld
-        mov t6, helloworldLen + 100
-        ;pr t5, t6
+            mov t5, helloworld
+            mov t6, helloworldLen + 200
+            ;pr t5, t6
 
-        jnez a0, exit
-        jmp exit+8 ; nop for days
-
+            jez a0, exit+8 ; nop for days
+            sub s0, s0, 1
+            jnez s0, loop0
+            jmp exit
         calculate:
-        sl a0, a0, a1
-        ret
+            sl a0, a0, a1
+            ret
 
         exit:
-        hlt
+            hlt
     };
 }

@@ -61,8 +61,6 @@ impl Emulator {
             #[rustfmt::skip]
             if stop { break; };
 
-            let wait = FREQ * clk;
-
             #[cfg(feature = "steady-clock")] {
                 let wait = FREQ * clk;
                 if elapsed < wait {
