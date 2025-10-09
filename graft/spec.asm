@@ -95,9 +95,14 @@
     r31 => 0x1f
 }
 
-#subruledef immediate
+#subruledef immediate_be
 {
     {immediate: i32}  => immediate
+}
+
+#ruledef immediate
+{
+    {val: immediate_be} => val[7:0] @ val[15:8] @ val[23:16] @ val[31:24]
 }
 
 #ruledef

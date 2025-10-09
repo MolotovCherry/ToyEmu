@@ -7,6 +7,3 @@ edition = "2024"
 aspen = { path = "../aspen", default-features = false }
 graft = { path = "../graft" }
 graft-run = { path = "../graft-run" }
-
-[profile.release]
-lto = true

@@ -33,7 +33,7 @@ impl Drop for EmuGuard<'_> {
 
 fn run(asm: &str) -> EmuGuard<'_> {
     static LOCK: LazyLock<Mutex<Emulator>> =
-        LazyLock::new(|| Mutex::new(Emulator::new(&[]).expect("creation to succeed")));
+        LazyLock::new(|| Mutex::new(Emulator::new(&[]).unwrap()));
 
     LOCK.clear_poison();
 
@@ -49,7 +49,7 @@ fn run(asm: &str) -> EmuGuard<'_> {
 
     guard.write_program(&data);
 
-    guard.run().expect("run to succeed");
+    guard.run().unwrap();
 
     EmuGuard(guard)
 }
@@ -130,11 +130,11 @@ fn test_registers() {
 #[serial]
 fn test_mov() {
     let emu = run! {
-         mov t0, 56
+         mov t0, 0x12345678
          mov t1, t0
     };
-    assert_eq!(emu.cpu.gp.t0, 56);
-    assert_eq!(emu.cpu.gp.t1, 56);
+    assert_eq!(emu.cpu.gp.t0, 0x12345678);
+    assert_eq!(emu.cpu.gp.t1, 0x12345678);
 }
 
 #[test]

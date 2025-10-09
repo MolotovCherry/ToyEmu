@@ -31,6 +31,10 @@ pub struct Instruction {
 
 impl Instruction {
     pub fn from_slice(inst: &[u8]) -> Result<Self, InstError> {
+        // note: slice comes in unbounded on the right side
+        // slice it to possible full instruction length
+        let inst = &inst[..inst.len().min(8)];
+
         if inst.len() < 4 {
             return Err(InstError::WrongSize(inst.len()));
         }
@@ -50,7 +54,7 @@ impl Instruction {
             }
 
             let arr: [u8; 4] = inst[4..8].try_into().unwrap();
-            let val = BitSize::from_be_bytes(arr);
+            let val = BitSize::from_le_bytes(arr);
 
             Some(val)
         } else {
