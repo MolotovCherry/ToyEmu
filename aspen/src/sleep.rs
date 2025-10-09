@@ -44,7 +44,7 @@ pub fn u_sleep(dur: Duration) {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(unix)]
 pub fn u_sleep(dur: Duration) {
     // on linux, clock_nanosleep is high resolution
     // on mac/aarch64 it has microsecond precision iirc

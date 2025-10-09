@@ -12,10 +12,8 @@ use windows::Win32::{
     },
 };
 
-#[cfg(not(windows))]
-use std::io;
-#[cfg(not(windows))]
-use std::sync::Arc;
+#[cfg(unix)]
+use std::{io, sync::Arc};
 
 use crate::BitSize;
 
@@ -29,7 +27,7 @@ pub enum MemError {
     #[cfg(windows)]
     #[error("Winapi Error: {0}")]
     WinApi(#[from] windows::core::Error),
-    #[cfg(not(windows))]
+    #[cfg(unix)]
     #[error("I/O Error: {0}")]
     Io(Arc<io::Error>),
 }
@@ -91,7 +89,7 @@ impl Memory {
         Ok(this)
     }
 
-    #[cfg(not(windows))]
+    #[cfg(unix)]
     pub fn new() -> Result<Self, MemError> {
         use core::ptr::addr_eq;
         use core::{mem::transmute, ptr::null_mut};
@@ -222,7 +220,7 @@ impl Memory {
     }
 
     #[allow(unused)]
-    #[cfg(not(windows))]
+    #[cfg(unix)]
     pub fn zeroize(&mut self) -> Result<(), MemError> {
         let ptr = self.data.cast::<c_void>();
 
@@ -271,7 +269,7 @@ impl Drop for Memory {
         }
     }
 
-    #[cfg(not(windows))]
+    #[cfg(unix)]
     fn drop(&mut self) {
         let ptr = self.data.cast::<c_void>();
 

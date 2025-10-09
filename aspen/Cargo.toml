@@ -9,8 +9,12 @@ bytemuck = { version = "1.24.0", features = ["latest_stable_rust"] }
 env_logger = "0.11.8"
 log = "0.4.28"
 thiserror = "2.0.17"
-libc = { version = "0.2.177", optional = true }
-windows = { version = "0.62.2", features = ["Win32_System_Memory", "Win32_System_Performance"], optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = ["Win32_System_Memory", "Win32_System_Performance"] }
+
+[target.'cfg(unix)'.dependencies]
+libc =  "0.2.177"
 
 [dev-dependencies]
 graft = { path = "../graft" }
@@ -18,7 +22,5 @@ graft-run = { path = "../graft-run" }
 serial_test = "3.2.0"
 
 [features]
-libc = ["dep:libc"]
-windows = ["dep:windows"]
 steady-clock = []
-default = ["libc", "windows", "steady-clock"]
+default = ["steady-clock"]
