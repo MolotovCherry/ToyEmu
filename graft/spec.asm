@@ -127,6 +127,8 @@
     slp {a: register}, {b: register} => (0`2 @ 0b0 @ 0`5) @ 0x09 @ a @ b
     slp {i: immediate} => (0`2 @ 0b1 @ 0`5) @ 0x09 @ 0x00 @ 0x00 @ i
 
+    rdclk {a: register}, {b: register} => (0`2 @ 0b0 @ 0`5) @ 0x0a @ a @ b
+
     ; ld mem
 
     ld {d: register}, mem[{a: register}] =>

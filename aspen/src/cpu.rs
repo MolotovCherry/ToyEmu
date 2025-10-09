@@ -159,6 +159,18 @@ impl Cpu {
                 }
             }
 
+            // rdclk {reg}, {reg}
+            (0, _, 0x0a, a, b, _) => {
+                trace!("rdclk {}, {}", Self::mnemonic(a), Self::mnemonic(b));
+
+                let val = self.clk.to_be_bytes();
+                let high = BitSize::from_be_bytes([val[0], val[1], val[2], val[3]]);
+                let low = BitSize::from_be_bytes([val[4], val[5], val[6], val[7]]);
+
+                self.gp.set_reg(a, high)?;
+                self.gp.set_reg(b, low)?;
+            }
+
             // TODO: load / str ops
 
             //
