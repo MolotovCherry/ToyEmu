@@ -2,6 +2,9 @@
 resolver = "3"
 members = ["graft", "aspen", "graft-run"]
 
+[profile.dev]
+opt-level = 1
+
 [profile.test]
 inherits = "release"
 opt-level = 1

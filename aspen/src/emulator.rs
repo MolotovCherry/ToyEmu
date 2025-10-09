@@ -1,10 +1,13 @@
 #[cfg(test)]
 mod tests;
 
+use std::time::{Duration, Instant};
+
 use crate::BitSize;
 use crate::cpu::{Cpu, CpuError};
 use crate::instruction::{InstError, Instruction};
 use crate::memory::{MemError, Memory};
+use crate::sleep::u_sleep;
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum EmuError {
@@ -40,14 +43,26 @@ impl Emulator {
     pub fn run(&mut self) -> Result<(), EmuError> {
         let mut stop = false;
 
+        let freq = Duration::from_micros(5);
         loop {
+            let mut clk = 1u32;
             let inst = self.next_inst()?;
 
-            self.cpu.process(inst, &mut self.mem, &mut stop)?;
+            let now = Instant::now();
+            self.cpu.process(inst, &mut self.mem, &mut stop, &mut clk)?;
+            let elapsed = now.elapsed();
 
-            if stop {
-                break;
+            #[rustfmt::skip]
+            if stop { break; };
+
+            let wait = freq * clk;
+            if elapsed < wait {
+                let left = wait.saturating_sub(elapsed);
+                u_sleep(left);
             }
+
+            // clock cycles we've been powered on for
+            self.cpu.clk += clk as u64;
         }
 
         Ok(())

@@ -25,6 +25,8 @@ pub struct Cpu {
     pub gfx: BitSize,
     /// program counter
     pub pc: BitSize,
+    /// clock counter
+    pub clk: u64,
 }
 
 impl Cpu {
@@ -33,6 +35,7 @@ impl Cpu {
         inst: Instruction,
         mem: &mut Memory,
         stop: &mut bool,
+        clk: &mut u32,
     ) -> Result<(), CpuError> {
         match (inst.mode, inst.dst, inst.op_code, inst.a, inst.b, inst.imm) {
             // nop

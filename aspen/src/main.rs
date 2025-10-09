@@ -2,6 +2,7 @@ mod cpu;
 mod emulator;
 mod instruction;
 mod memory;
+mod sleep;
 
 use std::{env, error::Error, fs};
 
