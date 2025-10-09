@@ -3,7 +3,7 @@ mod emulator;
 mod instruction;
 mod memory;
 
-use std::{env, error::Error, fs, process};
+use std::{env, error::Error, fs};
 
 use env_logger::Env;
 
@@ -25,11 +25,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let program = fs::read(file)?;
     let mut emu = Emulator::new(&program)?;
 
-    match emu.run() {
-        // I'd love to use ExitCode, but ExitCode supporting
-        // u32 is nightly only for Windows
-        Ok(code) => process::exit(code as _),
-        Err(e) => eprintln!("{e}"),
+    if let Err(e) = emu.run() {
+        eprintln!("{e}");
     }
 
     Ok(())

@@ -1,7 +1,5 @@
 use std::{
-    slice,
-    sync::mpsc::Sender,
-    thread,
+    slice, thread,
     time::{Duration, SystemTime},
 };
 
@@ -34,17 +32,16 @@ impl Cpu {
         &mut self,
         inst: Instruction,
         mem: &mut Memory,
-        stop_tx: &Sender<u32>,
+        stop: &mut bool,
     ) -> Result<(), CpuError> {
         match (inst.mode, inst.dst, inst.op_code, inst.a, inst.b, inst.imm) {
             // nop
             (0, _, 0x00, _, _, None) => trace!("nop"),
 
             // hlt
-            (0, _, 0x01, a, _, None) => {
-                trace!("hlt {}", Self::mnemonic(a));
-                let val = self.gp.get_reg(a)?;
-                stop_tx.send(val).expect("send to succeed");
+            (0, _, 0x01, _, _, None) => {
+                trace!("hlt");
+                *stop = true;
                 return Ok(());
             }
 

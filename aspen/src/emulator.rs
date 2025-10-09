@@ -1,8 +1,6 @@
 #[cfg(test)]
 mod tests;
 
-use std::sync::mpsc::{TryRecvError, channel};
-
 use crate::BitSize;
 use crate::cpu::{Cpu, CpuError};
 use crate::instruction::{InstError, Instruction};
@@ -39,24 +37,20 @@ impl Emulator {
         self.mem[..program.len() as BitSize].copy_from_slice(program);
     }
 
-    pub fn run(&mut self) -> Result<u32, EmuError> {
-        let (stop_tx, stop_recv) = channel();
+    pub fn run(&mut self) -> Result<(), EmuError> {
+        let mut stop = false;
 
-        let code = loop {
+        loop {
             let inst = self.next_inst()?;
 
-            self.cpu.process(inst, &mut self.mem, &stop_tx)?;
+            self.cpu.process(inst, &mut self.mem, &mut stop)?;
 
-            match stop_recv.try_recv() {
-                Ok(c) => break c,
-                Err(TryRecvError::Empty) => (),
-                Err(TryRecvError::Disconnected) => {
-                    unreachable!("stop_tx unexpectedly disconnected")
-                }
+            if stop {
+                break;
             }
-        };
+        }
 
-        Ok(code)
+        Ok(())
     }
 
     fn next_inst(&self) -> Result<Instruction, InstError> {

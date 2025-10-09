@@ -105,7 +105,6 @@
     nop => 0x00000000
 
     hlt => (0`2 @ 0b0 @ 0`5) @ 0x01 @ 0x00 @ 0x00
-    hlt {a: register} => (0`2 @ 0b0 @ 0`5) @ 0x01 @ a @ 0x00
 
     ; console (utf-8)
     pr {a: register}, {b: register}  => (0`2 @ 0b0 @ 0`5) @ 0x02 @ a @ b
