@@ -1,0 +1,12 @@
+[package]
+name = "bmark"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aspen = { path = "../aspen", default-features = false, features = ["libc"] }
+graft = { path = "../graft" }
+graft-run = { path = "../graft-run" }
+
+[profile.release]
+lto = true

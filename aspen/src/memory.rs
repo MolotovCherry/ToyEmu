@@ -3,6 +3,7 @@ use std::{
     ops::{Index, IndexMut, RangeBounds},
 };
 
+#[cfg(windows)]
 use windows::Win32::{
     Foundation::{GetLastError, WIN32_ERROR},
     System::Memory::{
@@ -11,16 +12,26 @@ use windows::Win32::{
     },
 };
 
+#[cfg(not(windows))]
+use std::io;
+#[cfg(not(windows))]
+use std::sync::Arc;
+
 use crate::BitSize;
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum MemError {
     #[error("Invalid access: size {0} @ 0x{1:08x}")]
     InvalidAddr(BitSize, BitSize),
+    #[cfg(windows)]
     #[error("Alloc failed: {0:?}")]
     Alloc(WIN32_ERROR),
+    #[cfg(windows)]
     #[error("Winapi Error: {0}")]
     WinApi(#[from] windows::core::Error),
+    #[cfg(not(windows))]
+    #[error("I/O Error: {0}")]
+    Io(Arc<io::Error>),
 }
 
 const MEM_SIZE: usize = BitSize::MAX as usize;
@@ -52,6 +63,7 @@ impl<R: RangeBounds<BitSize>> IndexMut<R> for Memory {
 }
 
 impl Memory {
+    #[cfg(windows)]
     pub fn new() -> Result<Self, MemError> {
         #[rustfmt::skip]
         let ptr = unsafe {
@@ -66,6 +78,51 @@ impl Memory {
         if ptr.is_null() {
             let err = unsafe { GetLastError() };
             return Err(MemError::Alloc(err));
+        }
+
+        // SAFETY:
+        // alloc is BitSize::MAX big (above)
+        // we also already checked for a failed call
+        // therefore this cast is valid
+        let this = Self {
+            data: ptr.cast::<[u8; MEM_SIZE]>(),
+        };
+
+        Ok(this)
+    }
+
+    #[cfg(not(windows))]
+    pub fn new() -> Result<Self, MemError> {
+        use core::ptr::addr_eq;
+        use core::{mem::transmute, ptr::null_mut};
+        use libc::{MAP_ANONYMOUS, MAP_FAILED, MAP_PRIVATE, PROT_READ, PROT_WRITE, mmap};
+        use std::os::fd::BorrowedFd;
+
+        // SAFETY:
+        // BorrowedFd is `repr(transparent)` with `RawFd`
+        // since this code compiles, it means `Option<BorrowedFd<'_>>` and `BorrowedFd<'_>>`
+        // have the same size, meaning it has a niche for `None`,
+        // which should be the value `-1`
+        //
+        // TODO: replace this with a const so it's less stupid
+        // I just wanted to show off my super "sound" "proofs" :clueless:
+        const INVALID_FD: i32 = unsafe { transmute(None::<BorrowedFd<'_>>) };
+
+        let ptr = unsafe {
+            mmap(
+                null_mut(),
+                MEM_SIZE,
+                PROT_READ | PROT_WRITE,
+                MAP_PRIVATE | MAP_ANONYMOUS,
+                INVALID_FD,
+                0,
+            )
+        };
+
+        if addr_eq(ptr, MAP_FAILED) {
+            let err = io::Error::last_os_error();
+
+            return Err(MemError::Io(Arc::new(err)));
         }
 
         // SAFETY:
@@ -132,6 +189,7 @@ impl Memory {
 
     /// Zeroes memory
     #[allow(unused)]
+    #[cfg(windows)]
     pub fn zeroize(&mut self) -> Result<(), MemError> {
         let ptr = self.data.cast::<c_void>();
 
@@ -163,7 +221,24 @@ impl Memory {
         Ok(())
     }
 
-    fn data_mut(&mut self) -> &mut [u8; MEM_SIZE] {
+    #[allow(unused)]
+    #[cfg(not(windows))]
+    pub fn zeroize(&mut self) -> Result<(), MemError> {
+        let ptr = self.data.cast::<c_void>();
+
+        // SAFETY:
+        // `DONT_NEED` has the effects of resetting the backing memory to zeroes immediately
+        // we can't use `MADV_FREE` on linux because it's a delayed operation which means
+        // the memory is effectively "uninit" and/or "aliased" since it could change at
+        // any random point in time
+        //
+        // this also lets the operating system reclaim the pages we wrote to
+        unsafe { libc::madvise(ptr, MEM_SIZE, libc::MADV_DONTNEED) };
+
+        Ok(())
+    }
+
+    pub fn data_mut(&mut self) -> &mut [u8; MEM_SIZE] {
         // SAFETY:
         // This ptr is always valid
         // and was created being MEM_SIZE big
@@ -173,7 +248,7 @@ impl Memory {
         unsafe { &mut *self.data }
     }
 
-    fn data(&self) -> &[u8; MEM_SIZE] {
+    pub fn data(&self) -> &[u8; MEM_SIZE] {
         // SAFETY:
         // This ptr is always valid
         // and was created being MEM_SIZE big
@@ -185,6 +260,7 @@ impl Memory {
 }
 
 impl Drop for Memory {
+    #[cfg(windows)]
     fn drop(&mut self) {
         let ptr = self.data.cast::<c_void>();
 
@@ -192,6 +268,17 @@ impl Drop for Memory {
 
         if let Err(e) = res {
             eprintln!("failed to free mem:\n{e:?}");
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn drop(&mut self) {
+        let ptr = self.data.cast::<c_void>();
+
+        let res = unsafe { libc::munmap(ptr, MEM_SIZE) };
+
+        if res == -1 {
+            eprintln!("failed to free mem:\n{:?}", io::Error::last_os_error());
         }
     }
 }

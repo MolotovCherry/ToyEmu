@@ -1,12 +1,16 @@
-use std::{hint, time::Duration};
-
-use windows::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
+use std::time::Duration;
 
 /// 1µs precision sleep function
 #[cfg(windows)]
 pub fn u_sleep(dur: Duration) {
+    use std::hint;
+    use windows::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
+    use windows::core::Error;
+
     #[cold]
-    fn cold_path() {}
+    fn query_failed(msg: &str, e: Error) -> ! {
+        panic!("{msg}: {e:?}");
+    }
 
     let wait = dur.as_micros().clamp(u64::MIN as u128, u64::MAX as u128) as u64;
 
@@ -16,14 +20,12 @@ pub fn u_sleep(dur: Duration) {
 
     let res = unsafe { QueryPerformanceCounter(&mut t1) };
     if let Err(e) = res {
-        cold_path();
-        panic!("u_sleep QueryPerformanceCounter: {e:?}");
+        query_failed("u_sleep QueryPerformanceCounter", e);
     }
 
     let res = unsafe { QueryPerformanceFrequency(&mut freq) };
     if let Err(e) = res {
-        cold_path();
-        panic!("u_sleep QueryPerformanceFrequency: {e:?}");
+        query_failed("u_sleep QueryPerformanceFrequency", e);
     }
 
     let target = wait * (freq as u64 / 1000000);
@@ -31,8 +33,7 @@ pub fn u_sleep(dur: Duration) {
     loop {
         let res = unsafe { QueryPerformanceCounter(&mut t2) };
         if let Err(e) = res {
-            cold_path();
-            panic!("u_sleep loop QueryPerformanceCounter: {e:?}");
+            query_failed("u_sleep loop QueryPerformanceCounter", e);
         }
 
         if (t2 as u64 - t1 as u64) > target {
@@ -45,5 +46,8 @@ pub fn u_sleep(dur: Duration) {
 
 #[cfg(not(windows))]
 pub fn u_sleep(dur: Duration) {
-    unimplemented!()
+    // on linux, clock_nanosleep is high resolution
+    // on mac/aarch64 it has microsecond precision iirc
+    // untested on other platforms, just default for now
+    std::thread::sleep(dur);
 }

@@ -2,9 +2,11 @@ use std::{slice, time::SystemTime};
 
 use bstr::ByteSlice;
 use bytemuck::{AnyBitPattern, NoUninit};
-use log::trace;
 
-use crate::{BitSize, emulator::FREQ, instruction::Instruction, memory::Memory};
+use crate::{BitSize, instruction::Instruction, memory::Memory};
+
+#[cfg(feature = "steady-clock")]
+use crate::emulator::FREQ;
 
 #[derive(Debug, Copy, Clone, thiserror::Error)]
 pub enum CpuError {
@@ -24,6 +26,18 @@ pub struct Cpu {
     pub pc: BitSize,
     /// clock counter
     pub clk: u64,
+}
+
+macro_rules! trace {
+  ($($args:tt)*) => {
+    if log::log_enabled!(log::Level::Trace) {
+      ({
+        #[cold]
+        #[inline(never)]
+        || log::trace!($($args)*)
+      })();
+    }
+  }
 }
 
 impl Cpu {
@@ -150,6 +164,7 @@ impl Cpu {
                     }
                 };
 
+                #[cfg(feature = "steady-clock")]
                 if val > 0 {
                     // add cycles consistent with frequency
                     let fre = const { FREQ.as_micros() as u64 };
