@@ -58,8 +58,7 @@ impl Emulator {
 
             let wait = FREQ * clk;
             if elapsed < wait {
-                let left = wait.saturating_sub(elapsed);
-                u_sleep(left);
+                u_sleep(wait - elapsed);
             }
 
             // clock cycles we've been powered on for
