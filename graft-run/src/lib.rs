@@ -20,7 +20,9 @@ pub fn run(input: TokenStream) -> TokenStream {
         if let Some(mut s) = tree.span().source_text() {
             if iter
                 .peek()
-                .is_none_or(|t| t.span().source_text().is_none_or(|t| t != ","))
+                .and_then(|t| t.span().source_text())
+                .unwrap_or_default()
+                != ","
             {
                 s.push(' ');
             }
