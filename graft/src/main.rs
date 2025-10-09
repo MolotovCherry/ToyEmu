@@ -28,7 +28,7 @@ fn main() {
     };
     let filename = &*filename.to_string_lossy();
 
-    let data = match assemble(filename, &input_file, true) {
+    let data = match assemble(filename, &input_file) {
         Ok(bin) => bin,
         Err(e) => {
             eprintln!("{e}");

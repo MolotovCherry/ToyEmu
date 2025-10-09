@@ -69,10 +69,10 @@ dependencies = [
  "bytemuck",
  "env_logger",
  "graft",
+ "graft-run",
  "log",
  "serial_test",
  "thiserror",
- "unindent",
  "windows",
 ]
 
@@ -256,6 +256,13 @@ version = "0.1.0"
 dependencies = [
  "customasm",
  "thiserror",
+]
+
+[[package]]
+name = "graft-run"
+version = "0.1.0"
+dependencies = [
+ "quote",
 ]
 
 [[package]]
@@ -590,12 +597,6 @@ name = "unicode-width"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a1a07cc7db3810833284e8d372ccdc6da29741639ecc70c9ec107df0fa6154c"
-
-[[package]]
-name = "unindent"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7264e107f553ccae879d21fbea1d6724ac785e8c3bfc762137959b5802826ef3"
 
 [[package]]
 name = "utf8parse"

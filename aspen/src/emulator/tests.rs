@@ -3,8 +3,8 @@ use std::{
     sync::{LazyLock, Mutex, MutexGuard},
 };
 
+use graft_run::run;
 use serial_test::serial;
-use unindent::unindent;
 
 pub use super::*;
 
@@ -40,8 +40,6 @@ fn run(asm: &str) -> (EmuGuard<'_>, u32) {
     // important. this will keep it synchronous
     let mut guard = LOCK.lock().unwrap();
 
-    let asm = unindent(asm.trim());
-
     #[rustfmt::skip]
     let asm = format!("
 {asm}
@@ -50,7 +48,10 @@ fn run(asm: &str) -> (EmuGuard<'_>, u32) {
 hlt
 ");
 
-    let data = graft::assemble("<input>.asm", asm.trim(), false).expect("assemblage to succeed");
+    let data = match graft::assemble("<input>.asm", asm.trim()) {
+        Ok(d) => d,
+        Err(e) => panic!("{e}"),
+    };
 
     guard.write_program(&data);
 
@@ -63,15 +64,15 @@ hlt
 #[serial]
 fn test_hlt() {
     {
-        let (_, code) = run("hlt");
+        let (_, code) = run! { hlt };
         assert_eq!(code, 0);
     }
 
     {
-        let (_, code) = run("
+        let (_, code) = run! {
             mov t0, 5
             hlt t0
-        ");
+        };
         assert_eq!(code, 5);
     }
 }
@@ -79,6 +80,6 @@ fn test_hlt() {
 #[test]
 #[serial]
 fn test2() {
-    let (emu, _) = run("mov t0, 56");
-    assert_eq!(emu.cpu.gp.t0, 5);
+    let (emu, _) = run! { mov t0, 56 };
+    assert_eq!(emu.cpu.gp.t0, 56);
 }
