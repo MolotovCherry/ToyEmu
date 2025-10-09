@@ -2,7 +2,6 @@ use std::{slice, time::SystemTime};
 
 use bstr::ByteSlice;
 use bytemuck::{AnyBitPattern, NoUninit};
-use log::trace;
 
 use crate::{BitSize, instruction::Instruction, memory::Memory};
 
@@ -27,6 +26,18 @@ pub struct Cpu {
     pub pc: BitSize,
     /// clock counter
     pub clk: u64,
+}
+
+macro_rules! trace {
+  ($($args:tt)*) => {
+    if log::log_enabled!(log::Level::Trace) {
+      ({
+        #[cold]
+        #[inline(never)]
+        || log::trace!($($args)*)
+      })();
+    }
+  }
 }
 
 impl Cpu {
