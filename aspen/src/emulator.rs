@@ -9,6 +9,7 @@ use crate::instruction::{InstError, Instruction};
 use crate::memory::{MemError, Memory};
 use crate::sleep::u_sleep;
 
+#[cfg(feature = "steady-clock")]
 pub const FREQ: Duration = Duration::from_micros(5);
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -38,7 +39,7 @@ impl Emulator {
         Ok(this)
     }
 
-    fn write_program(&mut self, program: &[u8]) {
+    pub fn write_program(&mut self, program: &[u8]) {
         self.mem[..program.len() as BitSize].copy_from_slice(program);
     }
 
@@ -49,16 +50,24 @@ impl Emulator {
             let mut clk = 1u32;
             let inst = self.next_inst()?;
 
+            #[cfg(feature = "steady-clock")]
             let now = Instant::now();
+
             self.cpu.process(inst, &mut self.mem, &mut stop, &mut clk)?;
+
+            #[cfg(feature = "steady-clock")]
             let elapsed = now.elapsed();
 
             #[rustfmt::skip]
             if stop { break; };
 
             let wait = FREQ * clk;
-            if elapsed < wait {
-                u_sleep(wait - elapsed);
+
+            #[cfg(feature = "steady-clock")] {
+                let wait = FREQ * clk;
+                if elapsed < wait {
+                    u_sleep(wait - elapsed);
+                }
             }
 
             // clock cycles we've been powered on for

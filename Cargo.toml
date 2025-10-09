@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["graft", "aspen", "graft-run"]
+members = ["graft", "aspen", "graft-run", "bmark"]
 
 [profile.dev]
 opt-level = 1

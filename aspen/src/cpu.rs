@@ -4,7 +4,10 @@ use bstr::ByteSlice;
 use bytemuck::{AnyBitPattern, NoUninit};
 use log::trace;
 
-use crate::{BitSize, emulator::FREQ, instruction::Instruction, memory::Memory};
+use crate::{BitSize, instruction::Instruction, memory::Memory};
+
+#[cfg(feature = "steady-clock")]
+use crate::emulator::FREQ;
 
 #[derive(Debug, Copy, Clone, thiserror::Error)]
 pub enum CpuError {
@@ -150,6 +153,7 @@ impl Cpu {
                     }
                 };
 
+                #[cfg(feature = "steady-clock")]
                 if val > 0 {
                     // add cycles consistent with frequency
                     let fre = const { FREQ.as_micros() as u64 };
