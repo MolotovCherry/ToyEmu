@@ -40,15 +40,9 @@ fn run(asm: &str) -> (EmuGuard<'_>, u32) {
     // important. this will keep it synchronous
     let mut guard = LOCK.lock().unwrap();
 
-    #[rustfmt::skip]
-    let asm = format!("
-{asm}
+    let asm = format!("{asm}\n\n; auto inserted\nhlt");
 
-; auto inserted hlt
-hlt
-");
-
-    let data = match graft::assemble("<input>.asm", asm.trim()) {
+    let data = match graft::assemble("<input>.asm", &asm) {
         Ok(d) => d,
         Err(e) => panic!("{e}"),
     };
@@ -63,18 +57,14 @@ hlt
 #[test]
 #[serial]
 fn test_hlt() {
-    {
-        let (_, code) = run! { hlt };
-        assert_eq!(code, 0);
-    }
+    let (_, code) = run! { hlt };
+    assert_eq!(code, 0);
 
-    {
-        let (_, code) = run! {
-            mov t0, 5
-            hlt t0
-        };
-        assert_eq!(code, 5);
-    }
+    let (_, code) = run! {
+        mov t0, 5
+        hlt t0
+    };
+    assert_eq!(code, 5);
 }
 
 #[test]

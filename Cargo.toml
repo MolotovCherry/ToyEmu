@@ -1,3 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["graft", "aspen", "graft-run"]
+
+[profile.test]
+inherits = "release"
+opt-level = 1
