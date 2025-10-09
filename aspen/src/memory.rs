@@ -96,15 +96,7 @@ impl Memory {
         use libc::{MAP_ANONYMOUS, MAP_FAILED, MAP_PRIVATE, PROT_READ, PROT_WRITE, mmap};
         use std::os::fd::BorrowedFd;
 
-        // SAFETY:
-        // BorrowedFd is `repr(transparent)` with `RawFd`
-        // since this code compiles, it means `Option<BorrowedFd<'_>>` and `BorrowedFd<'_>>`
-        // have the same size, meaning it has a niche for `None`,
-        // which should be the value `-1`
-        //
-        // TODO: replace this with a const so it's less stupid
-        // I just wanted to show off my super "sound" "proofs" :clueless:
-        const INVALID_FD: i32 = unsafe { transmute(None::<BorrowedFd<'_>>) };
+        const INVALID_FD: i32 = -1;
 
         let ptr = unsafe {
             mmap(
