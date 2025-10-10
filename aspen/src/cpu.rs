@@ -105,10 +105,10 @@ impl Cpu {
                 let cv = (time >> 32) as u32;
                 let dv = time as u32;
 
-                self.gp.set_reg(a, av)?;
-                self.gp.set_reg(b, bv)?;
-                self.gp.set_reg(c, cv)?;
-                self.gp.set_reg(d, dv)?;
+                self.gp.set_reg(a, dv)?;
+                self.gp.set_reg(b, cv)?;
+                self.gp.set_reg(c, bv)?;
+                self.gp.set_reg(d, av)?;
             }
 
             // rdpc {reg}
@@ -154,12 +154,10 @@ impl Cpu {
                 let val = match imm {
                     Some(i) => i as _,
                     None => {
-                        let val = self.gp.get_reg(b)?.to_le_bytes();
-                        let val2 = self.gp.get_reg(a)?.to_le_bytes();
+                        let val = self.gp.get_reg(a)?;
+                        let val2 = self.gp.get_reg(b)?;
 
-                        u64::from_le_bytes([
-                            val2[3], val2[2], val2[1], val2[0], val[3], val[2], val[1], val[0],
-                        ])
+                        (val as u64) << 32 | (val2 as u64)
                     }
                 };
 

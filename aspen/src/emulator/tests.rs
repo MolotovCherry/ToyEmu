@@ -172,10 +172,10 @@ fn test_tme() {
 
     #[rustfmt::skip]
     let time: u128 =
-        (emu.cpu.gp.t0 as u128) << 96 |
-        (emu.cpu.gp.t1 as u128) << 64 |
-        (emu.cpu.gp.t2 as u128) << 32 |
-        (emu.cpu.gp.t3 as u128);
+        (emu.cpu.gp.t3 as u128) << 96 |
+        (emu.cpu.gp.t2 as u128) << 64 |
+        (emu.cpu.gp.t1 as u128) << 32 |
+        (emu.cpu.gp.t0 as u128);
 
     assert!(time > before);
     assert!(time < after);
