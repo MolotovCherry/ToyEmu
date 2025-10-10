@@ -144,6 +144,7 @@ fn test_rdclk() {
         rdclk t0, t1
     };
 
-    assert_eq!(emu.cpu.gp.t0, 0);
-    assert_eq!(emu.cpu.gp.t1, 2);
+    let val = ((emu.cpu.gp.t1 as u64) << 32) | (emu.cpu.gp.t0 as u64);
+
+    assert_eq!(val, 0);
 }

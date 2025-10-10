@@ -178,12 +178,11 @@ impl Cpu {
             (0, _, 0x0a, a, b, _) => {
                 trace!("rdclk {}, {}", Self::mnemonic(a), Self::mnemonic(b));
 
-                let val = self.clk.to_le_bytes();
-                let high = BitSize::from_le_bytes([val[3], val[2], val[1], val[0]]);
-                let low = BitSize::from_le_bytes([val[7], val[6], val[5], val[4]]);
+                let high = (self.clk >> 32) as BitSize;
+                let low = (self.clk & 0xffffffff) as BitSize;
 
-                self.gp.set_reg(a, high)?;
-                self.gp.set_reg(b, low)?;
+                self.gp.set_reg(a, low)?;
+                self.gp.set_reg(b, high)?;
             }
 
             // TODO: load / str ops
@@ -1257,9 +1256,7 @@ impl Cpu {
     /// zero all registers
     #[allow(unused)]
     pub fn zeroize(&mut self) {
-        self.gfx = 0;
-        self.pc = 0;
-        self.gp = Registers::default();
+        *self = Self::default();
     }
 }
 
