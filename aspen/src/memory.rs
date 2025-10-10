@@ -3,18 +3,6 @@ use std::{
     ops::{Index, IndexMut, RangeBounds},
 };
 
-#[cfg(windows)]
-use windows::Win32::{
-    Foundation::{GetLastError, WIN32_ERROR},
-    System::Memory::{
-        MEM_COMMIT, MEM_DECOMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE, VirtualAlloc,
-        VirtualFree,
-    },
-};
-
-#[cfg(unix)]
-use std::{io, sync::Arc};
-
 use crate::BitSize;
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -23,13 +11,13 @@ pub enum MemError {
     InvalidAddr(BitSize, BitSize),
     #[cfg(windows)]
     #[error("Alloc failed: {0:?}")]
-    Alloc(WIN32_ERROR),
+    Alloc(windows::Win32::Foundation::WIN32_ERROR),
     #[cfg(windows)]
     #[error("Winapi Error: {0}")]
     WinApi(#[from] windows::core::Error),
     #[cfg(unix)]
     #[error("I/O Error: {0}")]
-    Io(Arc<io::Error>),
+    Io(std::sync::Arc<std::io::Error>),
 }
 
 const MEM_SIZE: usize = BitSize::MAX as usize;
@@ -63,6 +51,11 @@ impl<R: RangeBounds<BitSize>> IndexMut<R> for Memory {
 impl Memory {
     #[cfg(windows)]
     pub fn new() -> Result<Self, MemError> {
+        use windows::Win32::{
+            Foundation::GetLastError,
+            System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_READWRITE, VirtualAlloc},
+        };
+
         #[rustfmt::skip]
         let ptr = unsafe {
             VirtualAlloc(
@@ -181,6 +174,14 @@ impl Memory {
     #[allow(unused)]
     #[cfg(windows)]
     pub fn zeroize(&mut self) -> Result<(), MemError> {
+        use windows::Win32::{
+            Foundation::{GetLastError, WIN32_ERROR},
+            System::Memory::{
+                MEM_COMMIT, MEM_DECOMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_READWRITE, VirtualAlloc,
+                VirtualFree,
+            },
+        };
+
         let ptr = self.data.cast::<c_void>();
 
         // SAFETY: This call is unique cause &mut self
@@ -252,6 +253,8 @@ impl Memory {
 impl Drop for Memory {
     #[cfg(windows)]
     fn drop(&mut self) {
+        use windows::Win32::System::Memory::{MEM_RELEASE, VirtualFree};
+
         let ptr = self.data.cast::<c_void>();
 
         let res = unsafe { VirtualFree(ptr, 0, MEM_RELEASE) };
