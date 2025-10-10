@@ -141,10 +141,14 @@ fn test_mov() {
 #[serial]
 fn test_rdclk() {
     let emu = run! {
-        rdclk t0, t1
+        mov zr, zr   ; 1 cycle
+        mov zr, zr   ; 1 cycle
+        push t0      ; 2 cycles
+        pop t0       ; 2 cycles
+        rdclk t0, t1 ; 6!
     };
 
     let val = ((emu.cpu.gp.t1 as u64) << 32) | (emu.cpu.gp.t0 as u64);
 
-    assert_eq!(val, 0);
+    assert_eq!(val, 6);
 }
