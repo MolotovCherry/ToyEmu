@@ -116,7 +116,7 @@
     epr {a: register}, {b: register}  => (0`2 @ 0b0 @ 0`5) @ 0x03 @ a @ b
 
     ; time
-    time {d1: register}, {d2: register}, {d3: register}, {d4: register} =>
+    tme {d1: register}, {d2: register}, {d3: register}, {d4: register} =>
         (0`2 @ 0b1 @ 0`5) @ 0x04 @ d1 @ d2 @ d3 @ d4 @ 0x00 @ 0x00
 
     ; read program counter to register

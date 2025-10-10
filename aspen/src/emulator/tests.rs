@@ -152,3 +152,31 @@ fn test_rdclk() {
 
     assert_eq!(val, 6);
 }
+
+#[test]
+#[serial]
+fn test_tme() {
+    let before = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+
+    let emu = run! {
+        tme t0, t1, t2, t3
+    };
+
+    let after = std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+
+    #[rustfmt::skip]
+    let time: u128 =
+        (emu.cpu.gp.t0 as u128) << 96 |
+        (emu.cpu.gp.t1 as u128) << 64 |
+        (emu.cpu.gp.t2 as u128) << 32 |
+        (emu.cpu.gp.t3 as u128);
+
+    assert!(time > before);
+    assert!(time < after);
+}

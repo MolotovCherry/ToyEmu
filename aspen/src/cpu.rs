@@ -83,12 +83,12 @@ impl Cpu {
                 eprint!("{data}");
             }
 
-            // time {reg}, {reg}, {reg}, {reg}
+            // tme {reg}, {reg}, {reg}, {reg}
             (0, _, 0x04, a, b, Some(i)) => {
-                let [_, _, d, c] = i.to_le_bytes();
+                let [c, d, _, _] = i.to_le_bytes();
 
                 trace!(
-                    "time {}, {}, {}, {}",
+                    "tme {}, {}, {}, {}",
                     Self::mnemonic(a),
                     Self::mnemonic(b),
                     Self::mnemonic(c),
@@ -100,16 +100,15 @@ impl Cpu {
                     .map(|d| d.as_nanos())
                     .unwrap_or(0);
 
-                let split = time.to_le_bytes();
-                let av = u32::from_le_bytes([split[0], split[1], split[2], split[3]]);
-                let bv = u32::from_le_bytes([split[4], split[5], split[6], split[7]]);
-                let cv = u32::from_le_bytes([split[8], split[9], split[10], split[11]]);
-                let dv = u32::from_le_bytes([split[12], split[13], split[14], split[15]]);
+                let av = (time >> 96) as u32;
+                let bv = (time >> 64) as u32;
+                let cv = (time >> 32) as u32;
+                let dv = time as u32;
 
-                self.gp.set_reg(a, dv)?;
-                self.gp.set_reg(b, cv)?;
-                self.gp.set_reg(c, bv)?;
-                self.gp.set_reg(d, av)?;
+                self.gp.set_reg(a, av)?;
+                self.gp.set_reg(b, bv)?;
+                self.gp.set_reg(c, cv)?;
+                self.gp.set_reg(d, dv)?;
             }
 
             // rdpc {reg}
