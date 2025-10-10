@@ -44,10 +44,12 @@ impl Instruction {
         let a = inst[2];
         let b = inst[3];
 
+        // these are all in BE
         let mode = ctrl.rotate_left(2) & 0b11;
         let is_imm = ((ctrl >> 5) & 0b1) == 1;
         let dst = ctrl & 0b11111;
 
+        // imm is in LE
         let imm = if is_imm {
             if inst.len() < 8 {
                 return Err(InstError::WrongSize(inst.len()));

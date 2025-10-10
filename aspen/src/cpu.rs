@@ -85,7 +85,7 @@ impl Cpu {
 
             // time {reg}, {reg}, {reg}, {reg}
             (0, _, 0x04, a, b, Some(i)) => {
-                let [c, d, _, _] = i.to_be_bytes();
+                let [_, _, d, c] = i.to_le_bytes();
 
                 trace!(
                     "time {}, {}, {}, {}",
@@ -100,11 +100,11 @@ impl Cpu {
                     .map(|d| d.as_nanos())
                     .unwrap_or(0);
 
-                let split = time.to_be_bytes();
-                let av = u32::from_be_bytes([split[3], split[2], split[1], split[0]]);
-                let bv = u32::from_be_bytes([split[7], split[6], split[5], split[4]]);
-                let cv = u32::from_be_bytes([split[11], split[10], split[9], split[8]]);
-                let dv = u32::from_be_bytes([split[15], split[14], split[13], split[12]]);
+                let split = time.to_le_bytes();
+                let av = u32::from_le_bytes([split[0], split[1], split[2], split[3]]);
+                let bv = u32::from_le_bytes([split[4], split[5], split[6], split[7]]);
+                let cv = u32::from_le_bytes([split[8], split[9], split[10], split[11]]);
+                let dv = u32::from_le_bytes([split[12], split[13], split[14], split[15]]);
 
                 self.gp.set_reg(a, dv)?;
                 self.gp.set_reg(b, cv)?;
@@ -155,11 +155,11 @@ impl Cpu {
                 let val = match imm {
                     Some(i) => i as _,
                     None => {
-                        let val = self.gp.get_reg(b)?.to_be_bytes();
-                        let val2 = self.gp.get_reg(a)?.to_be_bytes();
+                        let val = self.gp.get_reg(b)?.to_le_bytes();
+                        let val2 = self.gp.get_reg(a)?.to_le_bytes();
 
-                        u64::from_be_bytes([
-                            val2[0], val2[1], val2[2], val2[3], val[0], val[1], val[2], val[3],
+                        u64::from_le_bytes([
+                            val2[3], val2[2], val2[1], val2[0], val[3], val[2], val[1], val[0],
                         ])
                     }
                 };
@@ -178,9 +178,9 @@ impl Cpu {
             (0, _, 0x0a, a, b, _) => {
                 trace!("rdclk {}, {}", Self::mnemonic(a), Self::mnemonic(b));
 
-                let val = self.clk.to_be_bytes();
-                let high = BitSize::from_be_bytes([val[0], val[1], val[2], val[3]]);
-                let low = BitSize::from_be_bytes([val[4], val[5], val[6], val[7]]);
+                let val = self.clk.to_le_bytes();
+                let high = BitSize::from_le_bytes([val[3], val[2], val[1], val[0]]);
+                let low = BitSize::from_le_bytes([val[7], val[6], val[5], val[4]]);
 
                 self.gp.set_reg(a, high)?;
                 self.gp.set_reg(b, low)?;
@@ -1142,7 +1142,7 @@ impl Cpu {
                     &mut mem[self.gp.sp..old_sp]
                 };
 
-                slice.copy_from_slice(&a.to_be_bytes());
+                slice.copy_from_slice(&a.to_le_bytes());
 
                 *clk = 2;
             }
@@ -1152,7 +1152,7 @@ impl Cpu {
                 trace!("pop {}", Self::mnemonic(dst));
 
                 let bytes = &mem[self.gp.sp..self.gp.sp + size_of::<BitSize>() as BitSize];
-                let data = BitSize::from_be_bytes(bytes.try_into().unwrap());
+                let data = BitSize::from_le_bytes(bytes.try_into().unwrap());
                 self.gp.sp = self.gp.sp.wrapping_add(size_of::<BitSize>() as _);
                 self.gp.set_reg(dst, data)?;
 
@@ -1169,7 +1169,7 @@ impl Cpu {
                 // push old ra to stack
                 let old_sp = self.gp.sp;
                 self.gp.sp = self.gp.sp.wrapping_sub(size_of::<BitSize>() as _);
-                mem[self.gp.sp..old_sp].copy_from_slice(&self.gp.ra.to_be_bytes());
+                mem[self.gp.sp..old_sp].copy_from_slice(&self.gp.ra.to_le_bytes());
 
                 let jmp = match imm {
                     Some(i) => i,
@@ -1198,7 +1198,7 @@ impl Cpu {
 
                 // pop old ra off stack and set it
                 let bytes = &mem[self.gp.sp..self.gp.sp + size_of::<BitSize>() as BitSize];
-                let ra = BitSize::from_be_bytes(bytes.try_into().unwrap());
+                let ra = BitSize::from_le_bytes(bytes.try_into().unwrap());
                 self.gp.sp = self.gp.sp.wrapping_add(size_of::<BitSize>() as _);
                 self.gp.ra = ra;
 
