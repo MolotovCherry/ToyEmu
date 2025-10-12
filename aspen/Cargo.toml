@@ -8,6 +8,7 @@ bstr = "1.12.0"
 bytemuck = { version = "1.24.0", features = ["latest_stable_rust"] }
 env_logger = "0.11.8"
 log = "0.4.28"
+strum = { version = "0.27.2", features = ["derive"] }
 thiserror = "2.0.17"
 
 [target.'cfg(windows)'.dependencies]

@@ -136,36 +136,36 @@
 
     ; ld mem
 
-    ld {d: register}, mem[{a: register}] =>
+    ld {d: register}, [{a: register}] =>
         (0`2 @ 0b0 @ d`5) @ 0x20 @ a @ 0x00
-    ld {d: register}, mem[{i: immediate}] =>
+    ld {d: register}, [{i: immediate}] =>
         (0`2 @ 0b1 @ d`5) @ 0x20 @ 0x00 @ 0x00 @ i
 
-    ld.w {d: register}, mem[{a: register}] =>
+    ld.w {d: register}, [{a: register}] =>
         (0`2 @ 0b0 @ d`5) @ 0x21 @ a @ 0x00
-    ld.w {d: register}, mem[{i: immediate}] =>
+    ld.w {d: register}, [{i: immediate}] =>
         (0`2 @ 0b1 @ d`5) @ 0x21 @ 0x00 @ 0x00 @ i
 
-    ld.b {d: register}, mem[{a: register}] =>
+    ld.b {d: register}, [{a: register}] =>
         (0`2 @ 0b0 @ d`5) @ 0x22 @ a @ 0x00
-    ld.b {d: register}, mem[{i: immediate}] =>
+    ld.b {d: register}, [{i: immediate}] =>
         (0`2 @ 0b1 @ d`5) @ 0x22 @ 0x00 @ 0x00 @ i
 
     ; ld storage
 
-    ld {d: register}, st[{a: register}] =>
+    pld {d: register}, [{a: register}] =>
         (0`2 @ 0b0 @ d`5) @ 0x23 @ a @ 0x00
-    ld {d: register}, st[{i: immediate}] =>
+    pld {d: register}, [{i: immediate}] =>
         (0`2 @ 0b1 @ d`5) @ 0x23 @ 0x00 @ 0x00 @ i
 
-    ld.w {d: register}, st[{a: register}] =>
+    pld.w {d: register}, [{a: register}] =>
         (0`2 @ 0b0 @ d`5) @ 0x24 @ a @ 0x00
-    ld.w {d: register}, st[{i: immediate}] =>
+    pld.w {d: register}, [{i: immediate}] =>
         (0`2 @ 0b1 @ d`5) @ 0x24 @ 0x00 @ 0x00 @ i
 
-    ld.b {d: register}, st[{a: register}] =>
+    pld.b {d: register}, [{a: register}] =>
         (0`2 @ 0b0 @ d`5) @ 0x25 @ a @ 0x00
-    ld.b {d: register}, st[{i: immediate}] =>
+    pld.b {d: register}, [{i: immediate}] =>
         (0`2 @ 0b1 @ d`5) @ 0x25 @ 0x00 @ 0x00 @ i
 
     ; st mem
@@ -187,19 +187,19 @@
 
     ; st storage
 
-    str st[{d: register}], {a: register} =>
+    pstr [{d: register}], {a: register} =>
         (0`2 @ 0b0 @ d`5) @ 0x29 @ a @ 0x00
-    str st[{d: register}], {i: immediate} =>
+    pstr st[{d: register}], {i: immediate} =>
         (0`2 @ 0b1 @ d`5) @ 0x29 @ 0x00 @ 0x00 @ i
 
-    str.w st[{d: register}], {a: register} =>
+    pstr.w [{d: register}], {a: register} =>
         (0`2 @ 0b0 @ d`5) @ 0x2a @ a @ 0x00
-    str.w st[{d: register}], {i: immediate} =>
+    pstr.w [{d: register}], {i: immediate} =>
         (0`2 @ 0b1 @ d`5) @ 0x2a @ 0x00 @ 0x00 @ i
 
-    str.b st[{d: register}], {a: register} =>
+    pstr.b [{d: register}], {a: register} =>
         (0`2 @ 0b0 @ d`5) @ 0x2b @ a @ 0x00
-    str.b st[{d: register}], {i: immediate} =>
+    pstr.b [{d: register}], {i: immediate} =>
         (0`2 @ 0b1 @ d`5) @ 0x2b @ 0x00 @ 0x00 @ i
 
     ;

@@ -1,14 +1,8 @@
-mod cpu;
-mod emulator;
-mod instruction;
-mod memory;
-mod sleep;
-
 use std::{env, error::Error, fs};
 
 use env_logger::Env;
 
-use crate::emulator::Emulator;
+use aspen::emulator::Emulator;
 
 pub type BitSize = u32;
 
