@@ -567,9 +567,9 @@ impl Cpu {
                 let a = self.gp.get_reg(inst.a);
                 let old_sp = self.gp.sp;
 
-                self.gp.sp = self.gp.sp.checked_sub(size_of::<BitSize>() as _).ok_or(CpuError::StackOverflow(self.pc))?;
+                self.gp.sp = self.gp.sp.checked_sub(3).ok_or(CpuError::StackOverflow(self.pc))?;
 
-                let slice = &mut mem[self.gp.sp..old_sp];
+                let slice = &mut mem[self.gp.sp..=old_sp];
 
                 slice.copy_from_slice(&a.to_le_bytes());
 
@@ -581,16 +581,12 @@ impl Cpu {
                 let end = self
                     .gp
                     .sp
-                    .checked_add(size_of::<BitSize>() as BitSize)
+                    .checked_add(3)
                     .ok_or(CpuError::StackUnderflow(self.gp.sp))?;
 
-                let bytes = &mem[start..end];
+                let bytes = &mem[start..=end];
                 let data = BitSize::from_le_bytes(bytes.try_into().unwrap());
-                self.gp.sp = self
-                    .gp
-                    .sp
-                    .checked_add(size_of::<BitSize>() as _)
-                    .ok_or(CpuError::StackUnderflow(self.pc))?;
+                self.gp.sp = end;
                 self.gp.set_reg(inst.dst, data);
 
                 *clk = 2;
@@ -603,10 +599,10 @@ impl Cpu {
                 self.gp.sp = self
                     .gp
                     .sp
-                    .checked_sub(size_of::<BitSize>() as _)
+                    .checked_sub(3)
                     .ok_or(CpuError::StackOverflow(self.pc))?;
 
-                mem[self.gp.sp..old_sp].copy_from_slice(&self.gp.ra.to_le_bytes());
+                mem[self.gp.sp..=old_sp].copy_from_slice(&self.gp.ra.to_le_bytes());
 
                 let jmp = get_imm_or!(inst.a);
 
@@ -631,17 +627,13 @@ impl Cpu {
                 let end = self
                     .gp
                     .sp
-                    .checked_add(size_of::<BitSize>() as BitSize)
+                    .checked_add(3)
                     .ok_or(CpuError::StackUnderflow(self.gp.sp))?;
 
                 // pop old ra off stack and set it
-                let bytes = &mem[start..end];
+                let bytes = &mem[start..=end];
                 let ra = BitSize::from_le_bytes(bytes.try_into().unwrap());
-                self.gp.sp = self
-                    .gp
-                    .sp
-                    .checked_add(size_of::<BitSize>() as BitSize)
-                    .ok_or(CpuError::StackUnderflow(self.gp.sp))?;
+                self.gp.sp = end;
 
                 self.gp.ra = ra;
 
