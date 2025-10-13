@@ -86,7 +86,7 @@ impl Emulator {
         if log::log_enabled!(Level::Trace) {
             #[cold]
             fn trace(pc: u32, i: &Instruction) {
-                trace!("{}: {i}", format_args!("0x{pc:0>8x}").bright_green());
+                trace!(target: "aspen::cpu", "{}: {i}", format_args!("0x{pc:0>8x}").bright_green());
             }
 
             trace(self.cpu.pc, &i);

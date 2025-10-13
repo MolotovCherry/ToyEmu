@@ -134,6 +134,8 @@
 
     rdclk {a: register}, {b: register} => (0`2 @ 0b0 @ 0`5) @ 0x0a @ a @ b
 
+    dbg {a: register} => (0`2 @ 0b0 @ 0`5) @ 0x0b @ a @ 0x00
+
     ; ld mem
 
     ld {d: register}, [{a: register}] =>

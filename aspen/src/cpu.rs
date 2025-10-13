@@ -5,7 +5,9 @@ use std::{
 
 use bstr::ByteSlice;
 use bytemuck::{AnyBitPattern, NoUninit};
+use log::trace;
 use strum::Display;
+use yansi::Paint;
 
 use crate::{
     BitSize,
@@ -161,6 +163,15 @@ impl Cpu {
 
                 self.gp.set_reg(inst.a, low);
                 self.gp.set_reg(inst.b, high);
+            }
+
+            Dbg => {
+                trace!(
+                    target: "aspen::dbg",
+                    "{}: {}",
+                    inst.a.bright_magenta(),
+                    format_args!("0x{:0>8x}", self.gp.get_reg(inst.a)).bright_yellow()
+                );
             }
 
             #[rustfmt::skip]

@@ -266,6 +266,7 @@ impl_inst! {
     (0, 0x08) => Draw
     (0, 0x09) => Slp [A, B] [Imm]
     (0, 0x0a) => Rdclk [A, B]
+    (0, 0x0b) => Dbg [A]
 
     // Memory
     (0, 0x20) => Ld [Dst, Brackets, A] [Dst, Brackets, Imm]
