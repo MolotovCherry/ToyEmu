@@ -170,19 +170,19 @@
 
     ; st mem
 
-    str mem[{d: register}], {a: register} =>
+    str [{d: register}], {a: register} =>
         (0`2 @ 0b0 @ d`5) @ 0x26 @ a @ 0x00
-    str mem[{d: register}], {i: immediate} =>
+    str [{d: register}], {i: immediate} =>
         (0`2 @ 0b1 @ d`5) @ 0x26 @ 0x00 @ 0x00 @ i
 
-    str.w mem[{d: register}], {a: register} =>
+    str.w [{d: register}], {a: register} =>
         (0`2 @ 0b0 @ d`5) @ 0x27 @ a @ 0x00
-    str.w mem[{d: register}], {i: immediate} =>
+    str.w [{d: register}], {i: immediate} =>
         (0`2 @ 0b1 @ d`5) @ 0x27 @ 0x00 @ 0x00 @ i
 
-    str.b mem[{d: register}], {a: register} =>
+    str.b [{d: register}], {a: register} =>
         (0`2 @ 0b0 @ d`5) @ 0x28 @ a @ 0x00
-    str.b mem[{d: register}], {i: immediate} =>
+    str.b [{d: register}], {i: immediate} =>
         (0`2 @ 0b1 @ d`5) @ 0x28 @ 0x00 @ 0x00 @ i
 
     ; st storage

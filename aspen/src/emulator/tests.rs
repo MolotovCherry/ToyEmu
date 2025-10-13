@@ -180,3 +180,101 @@ fn test_tme() {
     assert!(time > before);
     assert!(time < after);
 }
+
+#[test]
+#[serial]
+fn test_ld() {
+    let emu = run! {
+        mov t0, 0x12345678
+        str [t0], 0x52355678
+        ld t1, [t0]
+    };
+
+    assert_eq!(emu.cpu.gp.t1, 0x52355678);
+}
+
+#[test]
+#[serial]
+fn test_ldw() {
+    let emu = run! {
+        mov t0, 0x12345678
+        str.w [t0], 0x5678
+        ld.w t1, [t0]
+    };
+
+    assert_eq!(emu.cpu.gp.t1, 0x5678);
+}
+
+#[test]
+#[serial]
+fn test_ldb() {
+    let emu = run! {
+        mov t0, 0xFFFFFFFF
+        str.b [t0], 0x78
+        ld.b t1, [t0]
+    };
+
+    assert_eq!(emu.cpu.gp.t1, 0x78);
+}
+
+#[test]
+#[serial]
+fn test_str() {
+    let emu = run! {
+        mov t0, 0x12345678 ; location
+        str [t0], 0x12345678
+
+        mov t0, 0x11223344 ; location
+        mov t1, 0x11223344 ; val
+        str [t0], t1
+    };
+
+    let a = 0x12345678;
+    let data: [u8; 4] = emu.mem[a..a + 4].try_into().unwrap();
+    let val = u32::from_le_bytes(data);
+    assert_eq!(val, a);
+
+    let b = 0x11223344;
+    let data: [u8; 4] = emu.mem[b..b + 4].try_into().unwrap();
+    let val = u32::from_le_bytes(data);
+    assert_eq!(val, b);
+}
+
+#[test]
+#[serial]
+fn test_strw() {
+    let emu = run! {
+        mov t0, 0x1234 ; location
+        str.w [t0], 0x00001234
+
+        mov t0, 0x1122 ; location
+        mov t1, 0x00001122 ; val
+        str.w [t0], t1
+    };
+
+    let a = 0x00001234;
+    let data: [u8; 2] = emu.mem[a..a + 2].try_into().unwrap();
+    let val = u16::from_le_bytes(data);
+    assert_eq!(val as u32, a);
+
+    let b = 0x00001122;
+    let data: [u8; 2] = emu.mem[b..b + 2].try_into().unwrap();
+    let val = u16::from_le_bytes(data);
+    assert_eq!(val as u32, b);
+}
+
+#[test]
+#[serial]
+fn test_strb() {
+    let emu = run! {
+        mov t0, 0x1000 ; location
+        str.b [t0], 0x12
+
+        mov t0, 0xFFFFFFFF ; location
+        mov t1, 0x13 ; val
+        str.b [t0], t1
+    };
+
+    assert_eq!(emu.mem[0x1000], 0x12);
+    assert_eq!(emu.mem[0xFFFFFFFF], 0x13);
+}

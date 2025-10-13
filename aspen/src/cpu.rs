@@ -24,6 +24,8 @@ pub enum CpuError {
     StackUnderflow(u32),
     #[error("Stack overflow: 0x{0:0>8x}")]
     StackOverflow(u32),
+    #[error("")]
+    Overflow,
 }
 
 #[derive(Default, Copy, Clone)]
@@ -59,7 +61,9 @@ impl Cpu {
         }
 
         macro_rules! get_imm_or {
-            ($reg:expr) => {{ get_imm_or_else!(self.gp.get_reg($reg)) }};
+            ($reg:expr) => {
+                get_imm_or_else!(self.gp.get_reg($reg))
+            };
         }
 
         let mut add_cycles_from_micros = |val: u64| {
@@ -164,29 +168,77 @@ impl Cpu {
             // Memory
             //
 
-            Ld => {}
+            Ld => {
+                let start = get_imm_or!(inst.a);
+                let end = start
+                    .checked_add(3)
+                    .ok_or(CpuError::Overflow)?;
 
-            Ldw => {}
+                let data = &mem[start..=end];
+                let val = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+                self.gp.set_reg(inst.dst, val);
+            }
 
-            Ldb => {}
+            Ldw => {
+                let start = get_imm_or!(inst.a);
+                let end = start.checked_add(2).ok_or(CpuError::Overflow)?;
 
-            Pld => {}
+                let data = &mem[start..=end];
+                let val = u32::from_le_bytes([data[0], data[1], 0, 0]);
+                self.gp.set_reg(inst.dst, val);
+            }
 
-            Pldw => {}
+            Ldb => {
+                let start = get_imm_or!(inst.a);
 
-            Pldb => {}
+                let val = u32::from_le_bytes([mem[start], 0, 0, 0]);
+                self.gp.set_reg(inst.dst, val);
+            }
 
-            Str => {}
+            Pld => {
+                unimplemented!()
+            }
 
-            Strw => {}
+            Pldw => {
+                unimplemented!()
+            }
 
-            Strb => {}
+            Pldb => {
+                unimplemented!()
+            }
 
-            Pstr => {}
+            Str => {
+                let dst = self.gp.get_reg(inst.dst);
+                let end = dst.checked_add(3).ok_or(CpuError::Overflow)?;
 
-            Pstrw => {}
+                let data = get_imm_or!(inst.a).to_le_bytes();
+                mem[dst..=end].copy_from_slice(&data);
+            }
 
-            Pstrb => {}
+            Strw => {
+                let dst = self.gp.get_reg(inst.dst);
+                let end = dst.checked_add(1).ok_or(CpuError::Overflow)?;
+
+                let data = get_imm_or!(inst.a).to_le_bytes();
+                mem[dst..=end].copy_from_slice(&[data[0], data[1]]);
+            }
+
+            Strb => {
+                let dst = self.gp.get_reg(inst.dst);
+                mem[dst] = get_imm_or!(inst.a) as u8;
+            }
+
+            Pstr => {
+                unimplemented!()
+            }
+
+            Pstrw => {
+                unimplemented!()
+            }
+
+            Pstrb => {
+                unimplemented!()
+            }
 
             #[rustfmt::skip]
             //

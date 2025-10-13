@@ -1,6 +1,9 @@
 use std::{
     ffi::c_void,
-    ops::{Index, IndexMut, RangeBounds},
+    ops::{
+        Index, IndexMut, Range, RangeBounds, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+        RangeToInclusive,
+    },
 };
 
 use crate::BitSize;
@@ -20,33 +23,13 @@ pub enum MemError {
     Io(std::sync::Arc<std::io::Error>),
 }
 
-const MEM_SIZE: usize = BitSize::MAX as usize;
+const MEM_SIZE: usize = BitSize::MAX as usize + 1;
 
 pub struct Memory {
     data: *mut [u8; MEM_SIZE],
 }
 
 unsafe impl Send for Memory {}
-
-impl<R: RangeBounds<BitSize>> Index<R> for Memory {
-    type Output = [u8];
-
-    fn index(&self, index: R) -> &Self::Output {
-        let start = index.start_bound().map(|u| *u as usize);
-        let end = index.end_bound().map(|u| *u as usize);
-
-        &self.data()[(start, end)]
-    }
-}
-
-impl<R: RangeBounds<BitSize>> IndexMut<R> for Memory {
-    fn index_mut(&mut self, index: R) -> &mut Self::Output {
-        let start = index.start_bound().map(|u| *u as usize);
-        let end = index.end_bound().map(|u| *u as usize);
-
-        &mut self.data_mut()[(start, end)]
-    }
-}
 
 impl Memory {
     #[cfg(windows)]
@@ -229,7 +212,7 @@ impl Memory {
         Ok(())
     }
 
-    pub fn data_mut(&mut self) -> &mut [u8; MEM_SIZE] {
+    pub fn data_mut(&mut self) -> &mut [u8] {
         // SAFETY:
         // This ptr is always valid
         // and was created being MEM_SIZE big
@@ -239,7 +222,7 @@ impl Memory {
         unsafe { &mut *self.data }
     }
 
-    pub fn data(&self) -> &[u8; MEM_SIZE] {
+    pub fn data(&self) -> &[u8] {
         // SAFETY:
         // This ptr is always valid
         // and was created being MEM_SIZE big
@@ -273,6 +256,142 @@ impl Drop for Memory {
         if res == -1 {
             eprintln!("failed to free mem:\n{:?}", io::Error::last_os_error());
         }
+    }
+}
+
+impl Index<BitSize> for Memory {
+    type Output = u8;
+
+    fn index(&self, index: BitSize) -> &Self::Output {
+        &self.data()[index as usize]
+    }
+}
+
+impl Index<Range<BitSize>> for Memory {
+    type Output = [u8];
+
+    fn index(&self, index: Range<BitSize>) -> &Self::Output {
+        let index = Range {
+            start: index.start as _,
+            end: index.end as _,
+        };
+
+        &self.data()[index]
+    }
+}
+
+impl Index<RangeFrom<BitSize>> for Memory {
+    type Output = [u8];
+
+    fn index(&self, index: RangeFrom<BitSize>) -> &Self::Output {
+        let index = RangeFrom {
+            start: index.start as _,
+        };
+
+        &self.data()[index]
+    }
+}
+
+impl Index<RangeFull> for Memory {
+    type Output = [u8];
+
+    fn index(&self, _: RangeFull) -> &Self::Output {
+        self.data()
+    }
+}
+
+impl Index<RangeInclusive<BitSize>> for Memory {
+    type Output = [u8];
+
+    fn index(&self, index: RangeInclusive<BitSize>) -> &Self::Output {
+        let index = RangeInclusive::new(*index.start() as usize, *index.end() as usize);
+
+        &self.data()[index]
+    }
+}
+
+impl Index<RangeTo<BitSize>> for Memory {
+    type Output = [u8];
+
+    fn index(&self, index: RangeTo<BitSize>) -> &Self::Output {
+        let index = RangeTo {
+            end: index.end as _,
+        };
+
+        &self.data()[index]
+    }
+}
+
+impl Index<RangeToInclusive<BitSize>> for Memory {
+    type Output = [u8];
+
+    fn index(&self, index: RangeToInclusive<BitSize>) -> &Self::Output {
+        let index = RangeToInclusive {
+            end: index.end as _,
+        };
+
+        &self.data()[index]
+    }
+}
+
+impl IndexMut<BitSize> for Memory {
+    fn index_mut(&mut self, index: BitSize) -> &mut Self::Output {
+        &mut self.data_mut()[index as usize]
+    }
+}
+
+impl IndexMut<Range<BitSize>> for Memory {
+    fn index_mut(&mut self, index: Range<BitSize>) -> &mut Self::Output {
+        let index = Range {
+            start: index.start as _,
+            end: index.end as _,
+        };
+
+        &mut self.data_mut()[index]
+    }
+}
+
+impl IndexMut<RangeFrom<BitSize>> for Memory {
+    fn index_mut(&mut self, index: RangeFrom<BitSize>) -> &mut Self::Output {
+        let index = RangeFrom {
+            start: index.start as _,
+        };
+
+        &mut self.data_mut()[index]
+    }
+}
+
+impl IndexMut<RangeFull> for Memory {
+    fn index_mut(&mut self, _: RangeFull) -> &mut Self::Output {
+        self.data_mut()
+    }
+}
+
+impl IndexMut<RangeInclusive<BitSize>> for Memory {
+    fn index_mut(&mut self, index: RangeInclusive<BitSize>) -> &mut Self::Output {
+        let index = RangeInclusive::new(*index.start() as usize, *index.end() as usize);
+
+        &mut self.data_mut()[index]
+    }
+}
+
+impl IndexMut<RangeTo<BitSize>> for Memory {
+    fn index_mut(&mut self, index: RangeTo<BitSize>) -> &mut Self::Output {
+        let index = RangeTo {
+            end: index.end as _,
+        };
+
+        &mut self.data_mut()[index]
+    }
+}
+
+impl IndexMut<RangeToInclusive<BitSize>> for Memory {
+    fn index_mut(&mut self, index: RangeToInclusive<BitSize>) -> &mut Self::Output {
+        let index = RangeToInclusive {
+            end: index.end as _,
+        };
+
+        &mut self.data_mut()[index]
     }
 }
 
