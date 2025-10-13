@@ -114,29 +114,45 @@ impl Display for Instruction {
         for args in args.iter() {
             #[rustfmt::skip]
             let args_has_imm = args.iter().any(|i| {
-                matches!(i, Register::C | Register::D | Register::E | Register::F | Register::Imm)
+                matches!(i, RegOpts::C | RegOpts::D | RegOpts::E | RegOpts::F | RegOpts::Imm)
             });
 
             if (self.has_imm && !args_has_imm) || (!self.has_imm && args_has_imm) {
                 continue;
             }
 
+            let mut offset = 0;
+            let mut use_brackets = false;
             for (i, arg) in args.iter().enumerate() {
                 let reg = match arg {
-                    Register::Dst => self.dst,
-                    Register::A => self.a,
-                    Register::B => self.b,
+                    RegOpts::Dst => self.dst,
+                    RegOpts::A => self.a,
+                    RegOpts::B => self.b,
 
-                    Register::C => Reg::from(self.imm >> 24),
+                    RegOpts::C => Reg::from(self.imm >> 24),
 
-                    Register::D => Reg::from(self.imm >> 16),
+                    RegOpts::D => Reg::from(self.imm >> 16),
 
-                    Register::E => Reg::from(self.imm >> 8),
+                    RegOpts::E => Reg::from(self.imm >> 8),
 
-                    Register::F => Reg::from(self.imm),
+                    RegOpts::F => Reg::from(self.imm),
 
-                    Register::Imm => {
-                        if i > 0 {
+                    RegOpts::Imm => {
+                        if use_brackets {
+                            if i.saturating_sub(offset) > 0 {
+                                write!(
+                                    f,
+                                    ", [{}]",
+                                    format_args!("0x{:0>8x}", self.imm).bright_yellow()
+                                )?;
+                            } else {
+                                write!(
+                                    f,
+                                    " [{}]",
+                                    format_args!("0x{:0>8x}", self.imm).bright_yellow()
+                                )?;
+                            }
+                        } else if i.saturating_sub(offset) > 0 {
                             write!(
                                 f,
                                 ", {}",
@@ -150,15 +166,30 @@ impl Display for Instruction {
                             )?;
                         }
 
+                        use_brackets = false;
+                        continue;
+                    }
+
+                    RegOpts::Brackets => {
+                        offset += 1;
+                        use_brackets = true;
                         continue;
                     }
                 };
 
-                if i > 0 {
+                if use_brackets {
+                    if i.saturating_sub(offset) > 0 {
+                        write!(f, ", [{}]", reg.bright_cyan())?;
+                    } else {
+                        write!(f, " [{}]", reg.bright_cyan())?;
+                    }
+                } else if i.saturating_sub(offset) > 0 {
                     write!(f, ", {}", reg.bright_cyan())?;
                 } else {
                     write!(f, " {}", reg.bright_cyan())?;
                 }
+
+                use_brackets = false;
             }
         }
 
@@ -168,7 +199,7 @@ impl Display for Instruction {
 
 #[expect(dead_code)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-enum Register {
+enum RegOpts {
     Dst,
     A,
     B,
@@ -177,6 +208,8 @@ enum Register {
     E,
     F,
     Imm,
+    // Special opt which places brackets around next arg
+    Brackets,
 }
 
 macro_rules! impl_inst {
@@ -208,10 +241,10 @@ macro_rules! impl_inst {
                 Some(val)
             }
 
-            fn args(&self) -> &'static [&'static [Register]] {
+            fn args(&self) -> &'static [&'static [RegOpts]] {
                 match self {
                     $(
-                        Self::$inst => &[$(&[$(Register::$op,)*]),*],
+                        Self::$inst => &[$(&[$(RegOpts::$op,)*]),*],
                     )+
                 }
             }
@@ -235,29 +268,29 @@ impl_inst! {
     (0, 0x0a) => Rdclk [A, B]
 
     // Memory
-    (0, 0x20) => Ld [Dst, A] [Dst, Imm]
+    (0, 0x20) => Ld [Dst, Brackets, A] [Dst, Brackets, Imm]
     #[strum(to_string = "ld.w")]
-    (0, 0x21) => Ldw [Dst, A] [Dst, Imm]
+    (0, 0x21) => Ldw [Dst, Brackets, A] [Dst, Brackets, Imm]
     #[strum(to_string = "ld.b")]
-    (0, 0x22) => Ldb [Dst, A] [Dst, Imm]
+    (0, 0x22) => Ldb [Dst, Brackets, A] [Dst, Brackets, Imm]
 
-    (0, 0x23) => Pld [Dst, A] [Dst, Imm]
+    (0, 0x23) => Pld [Dst, Brackets, A] [Dst, Brackets, Imm]
     #[strum(to_string = "pld.w")]
-    (0, 0x24) => Pldw [Dst, A] [Dst, Imm]
+    (0, 0x24) => Pldw [Dst, Brackets, A] [Dst, Brackets, Imm]
     #[strum(to_string = "pld.b")]
-    (0, 0x25) => Pldb [Dst, A] [Dst, Imm]
+    (0, 0x25) => Pldb [Dst, Brackets, A] [Dst, Brackets, Imm]
 
-    (0, 0x26) => Str [Dst, A] [Dst, Imm]
+    (0, 0x26) => Str [Brackets, Dst, A] [Brackets, Dst, Imm]
     #[strum(to_string = "str.w")]
-    (0, 0x27) => Strw [Dst, A] [Dst, Imm]
+    (0, 0x27) => Strw [Brackets, Dst, A] [Brackets, Dst, Imm]
     #[strum(to_string = "str.b")]
-    (0, 0x28) => Strb [Dst, A] [Dst, Imm]
+    (0, 0x28) => Strb [Brackets, Dst, A] [Brackets, Dst, Imm]
 
-    (0, 0x29) => Pstr [Dst, A] [Dst, Imm]
+    (0, 0x29) => Pstr [Brackets, Dst, A] [Brackets, Dst, Imm]
     #[strum(to_string = "pstr.w")]
-    (0, 0x2a) => Pstrw [Dst, A] [Dst, Imm]
+    (0, 0x2a) => Pstrw [Brackets, Dst, A] [Brackets, Dst, Imm]
     #[strum(to_string = "pstr.b")]
-    (0, 0x2b) => Pstrb [Dst, A] [Dst, Imm]
+    (0, 0x2b) => Pstrb [Brackets, Dst, A] [Brackets, Dst, Imm]
 
     // Math
     (1, 0x00) => Nand [Dst, A, B] [Dst, A, Imm]
