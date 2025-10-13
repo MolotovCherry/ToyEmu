@@ -600,6 +600,93 @@ impl Cpu {
     }
 }
 
+#[derive(Copy, Clone, Debug, Display)]
+#[strum(serialize_all = "lowercase")]
+pub enum Reg {
+    Zr,
+    Ra,
+    Sp,
+    Gp,
+    Tp,
+    T0,
+    T1,
+    T2,
+    T3,
+    T4,
+    T5,
+    T6,
+    S0,
+    S1,
+    S2,
+    S3,
+    S4,
+    S5,
+    S6,
+    S7,
+    S8,
+    S9,
+    S10,
+    S11,
+    A0,
+    A1,
+    A2,
+    A3,
+    A4,
+    A5,
+    A6,
+    A7,
+}
+
+macro_rules! impl_reg {
+    ($($num:ty)+) => {
+        $(
+            impl From<$num> for Reg {
+                fn from(value: $num) -> Self {
+                    match value & 0b11111 {
+                        0x00 => Self::Zr,
+                        0x01 => Self::Ra,
+                        0x02 => Self::Sp,
+                        0x03 => Self::Gp,
+                        0x04 => Self::Tp,
+                        0x05 => Self::T0,
+                        0x06 => Self::T1,
+                        0x07 => Self::T2,
+                        0x08 => Self::T3,
+                        0x09 => Self::T4,
+                        0x0a => Self::T5,
+                        0x0b => Self::T6,
+                        0x0c => Self::S0,
+                        0x0d => Self::S1,
+                        0x0e => Self::S2,
+                        0x0f => Self::S3,
+                        0x10 => Self::S4,
+                        0x11 => Self::S5,
+                        0x12 => Self::S6,
+                        0x13 => Self::S7,
+                        0x14 => Self::S8,
+                        0x15 => Self::S9,
+                        0x16 => Self::S10,
+                        0x17 => Self::S11,
+                        0x18 => Self::A0,
+                        0x19 => Self::A1,
+                        0x1a => Self::A2,
+                        0x1b => Self::A3,
+                        0x1c => Self::A4,
+                        0x1d => Self::A5,
+                        0x1e => Self::A6,
+                        0x1f => Self::A7,
+
+                        // 5 bits guarantees only 0x00-0x1f
+                        _ => unreachable!(),
+                    }
+                }
+            }
+        )+
+    };
+}
+
+impl_reg!(u8 u32);
+
 /// Accessible CPU registers
 ///
 /// \[r\] - caller saved
@@ -711,93 +798,6 @@ impl Default for Registers {
         }
     }
 }
-
-#[derive(Copy, Clone, Debug, Display)]
-#[strum(serialize_all = "lowercase")]
-pub enum Reg {
-    Zr,
-    Ra,
-    Sp,
-    Gp,
-    Tp,
-    T0,
-    T1,
-    T2,
-    T3,
-    T4,
-    T5,
-    T6,
-    S0,
-    S1,
-    S2,
-    S3,
-    S4,
-    S5,
-    S6,
-    S7,
-    S8,
-    S9,
-    S10,
-    S11,
-    A0,
-    A1,
-    A2,
-    A3,
-    A4,
-    A5,
-    A6,
-    A7,
-}
-
-macro_rules! impl_reg {
-    ($($num:ty)+) => {
-        $(
-            impl From<$num> for Reg {
-                fn from(value: $num) -> Self {
-                    match value & 0b11111 {
-                        0x00 => Self::Zr,
-                        0x01 => Self::Ra,
-                        0x02 => Self::Sp,
-                        0x03 => Self::Gp,
-                        0x04 => Self::Tp,
-                        0x05 => Self::T0,
-                        0x06 => Self::T1,
-                        0x07 => Self::T2,
-                        0x08 => Self::T3,
-                        0x09 => Self::T4,
-                        0x0a => Self::T5,
-                        0x0b => Self::T6,
-                        0x0c => Self::S0,
-                        0x0d => Self::S1,
-                        0x0e => Self::S2,
-                        0x0f => Self::S3,
-                        0x10 => Self::S4,
-                        0x11 => Self::S5,
-                        0x12 => Self::S6,
-                        0x13 => Self::S7,
-                        0x14 => Self::S8,
-                        0x15 => Self::S9,
-                        0x16 => Self::S10,
-                        0x17 => Self::S11,
-                        0x18 => Self::A0,
-                        0x19 => Self::A1,
-                        0x1a => Self::A2,
-                        0x1b => Self::A3,
-                        0x1c => Self::A4,
-                        0x1d => Self::A5,
-                        0x1e => Self::A6,
-                        0x1f => Self::A7,
-
-                        // 5 bits guarantees only 0x00-0x1f
-                        _ => unreachable!(),
-                    }
-                }
-            }
-        )+
-    };
-}
-
-impl_reg!(u8 u32);
 
 impl Registers {
     #[inline]
