@@ -3,6 +3,9 @@ mod tests;
 
 use std::time::{Duration, Instant};
 
+use log::{Level, trace};
+use yansi::Paint as _;
+
 use crate::BitSize;
 use crate::cpu::{Cpu, CpuError};
 use crate::instruction::{InstError, Instruction};
@@ -79,6 +82,15 @@ impl Emulator {
     fn next_inst(&self) -> Result<Instruction, InstError> {
         let view = &self.mem[self.cpu.pc..];
         let i = Instruction::from_slice(view)?;
+
+        if log::log_enabled!(Level::Trace) {
+            #[cold]
+            fn trace(pc: u32, i: &Instruction) {
+                trace!("{}: {i}", format_args!("0x{pc:0>8x}").bright_green());
+            }
+
+            trace(self.cpu.pc, &i);
+        }
 
         Ok(i)
     }

@@ -32,18 +32,6 @@ pub struct Cpu {
     pub clk: u64,
 }
 
-macro_rules! trace {
-  ($($args:tt)*) => {
-    if log::log_enabled!(log::Level::Trace) {
-      ({
-        #[cold]
-        #[inline(never)]
-        || log::trace!($($args)*)
-      })();
-    }
-  }
-}
-
 impl Cpu {
     pub fn process(
         &mut self,
@@ -53,8 +41,6 @@ impl Cpu {
         clk: &mut u32,
     ) -> Result<(), CpuError> {
         use InstructionType::*;
-
-        trace!("{inst}");
 
         macro_rules! get_imm_or_else {
             ($($t:tt)*) => {{
@@ -738,5 +724,44 @@ impl Registers {
         let elem = *self.array().get(reg as usize).ok_or(RegError(reg))?;
 
         Ok(elem)
+    }
+
+    pub fn mnemonic(reg: u8) -> &'static str {
+        match reg {
+            0x00 => "zr",
+            0x01 => "ra",
+            0x02 => "sp",
+            0x03 => "gp",
+            0x04 => "tp",
+            0x05 => "t0",
+            0x06 => "t1",
+            0x07 => "t2",
+            0x08 => "t3",
+            0x09 => "t4",
+            0x0a => "t5",
+            0x0b => "t6",
+            0x0c => "s0",
+            0x0d => "s1",
+            0x0e => "s2",
+            0x0f => "s3",
+            0x10 => "s4",
+            0x11 => "s5",
+            0x12 => "s6",
+            0x13 => "s7",
+            0x14 => "s8",
+            0x15 => "s9",
+            0x16 => "s10",
+            0x17 => "s11",
+            0x18 => "a0",
+            0x19 => "a1",
+            0x1a => "a2",
+            0x1b => "a3",
+            0x1c => "a4",
+            0x1d => "a5",
+            0x1e => "a6",
+            0x1f => "a7",
+
+            _ => "<un>",
+        }
     }
 }

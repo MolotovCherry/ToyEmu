@@ -14,15 +14,16 @@
 use std::fmt::Display;
 
 use strum::Display;
+use yansi::Paint as _;
 
-use crate::BitSize;
+use crate::{BitSize, cpu::Registers};
 
 #[derive(Debug, Copy, Clone, thiserror::Error)]
 pub enum InstError {
     #[error("Incorrect instruction size: {0}")]
     WrongSize(usize),
-    #[error("Unknown opcode: {0}")]
-    UnknownOpcode(u8),
+    #[error("Unknown opcode: {0} {0}")]
+    UnknownInstruction(u8, u8),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -76,7 +77,8 @@ impl Instruction {
             Default::default()
         };
 
-        let ty = InstructionType::try_from(mode, opcode).ok_or(InstError::UnknownOpcode(opcode))?;
+        let ty = InstructionType::try_from(mode, opcode)
+            .ok_or(InstError::UnknownInstruction(mode, opcode))?;
 
         let this = Self {
             ty,
@@ -97,46 +99,58 @@ impl Instruction {
 
 impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.ty)?;
+        write!(f, "{}", self.ty.bright_magenta())?;
 
         let args = self.ty.args();
 
-        let should_print_imm = self.has_imm
-            && !args
-                .iter()
-                .any(|i| matches!(i, Register::C | Register::D | Register::E | Register::F));
+        for args in args.iter() {
+            #[rustfmt::skip]
+            let args_has_imm = args.iter().any(|i| {
+                matches!(i, Register::C | Register::D | Register::E | Register::F | Register::Imm)
+            });
 
-        for (i, arg) in args.iter().enumerate() {
-            let reg = match arg {
-                Register::Dst => self.dst,
-                Register::A => self.a,
-                Register::B => self.b,
+            if (self.has_imm && !args_has_imm) || (!self.has_imm && args_has_imm) {
+                continue;
+            }
 
-                Register::C if !should_print_imm => (self.imm >> 24) as _,
+            for (i, arg) in args.iter().enumerate() {
+                let reg = match arg {
+                    Register::Dst => self.dst,
+                    Register::A => self.a,
+                    Register::B => self.b,
 
-                Register::D if !should_print_imm => (self.imm >> 16) as _,
+                    Register::C => (self.imm >> 24) as _,
 
-                Register::E if !should_print_imm => (self.imm >> 8) as _,
+                    Register::D => (self.imm >> 16) as _,
 
-                Register::F if !should_print_imm => self.imm as u8,
+                    Register::E => (self.imm >> 8) as _,
 
-                Register::Imm if should_print_imm => {
-                    if i > 0 {
-                        write!(f, ", 0x{i:0>8x}")?;
-                    } else {
-                        write!(f, " 0x{i:0>8x}")?;
+                    Register::F => self.imm as u8,
+
+                    Register::Imm => {
+                        if i > 0 {
+                            write!(
+                                f,
+                                ", {}",
+                                format_args!("0x{:0>8x}", self.imm).bright_yellow()
+                            )?;
+                        } else {
+                            write!(
+                                f,
+                                " {}",
+                                format_args!("0x{:0>8x}", self.imm).bright_yellow()
+                            )?;
+                        }
+
+                        continue;
                     }
+                };
 
-                    continue;
+                if i > 0 {
+                    write!(f, ", {}", Registers::mnemonic(reg).bright_cyan())?;
+                } else {
+                    write!(f, " {}", Registers::mnemonic(reg).bright_cyan())?;
                 }
-
-                _ => continue,
-            };
-
-            if i > 0 {
-                write!(f, ", {}", mnemonic(reg))?;
-            } else {
-                write!(f, " {}", mnemonic(reg))?;
             }
         }
 
@@ -145,7 +159,7 @@ impl Display for Instruction {
 }
 
 #[expect(dead_code)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 enum Register {
     Dst,
     A,
@@ -161,7 +175,7 @@ macro_rules! impl_inst {
     (
         $(
             $(#[$m:meta])*
-            ($mode:expr, $opcode:expr) => $inst:ident $([$($op:ident),*])?
+            ($mode:expr, $opcode:expr) => $inst:ident $([$($op:ident),*])*
         )+
     ) => {
         #[derive(Copy, Clone, Debug, Display)]
@@ -186,10 +200,10 @@ macro_rules! impl_inst {
                 Some(val)
             }
 
-            fn args(&self) -> &'static [Register] {
+            fn args(&self) -> &'static [&'static [Register]] {
                 match self {
                     $(
-                        Self::$inst => &[$($(Register::$op,)*)*],
+                        Self::$inst => &[$(&[$(Register::$op,)*]),*],
                     )+
                 }
             }
@@ -207,118 +221,79 @@ impl_inst! {
     (0, 0x04) => Tme [A, B, C, D]
     (0, 0x05) => Rdpc [Dst]
     (0, 0x06) => Kbrd [Dst]
-    (0, 0x07) => Setgfx [A, Imm]
+    (0, 0x07) => Setgfx [A] [Imm]
     (0, 0x08) => Draw
-    (0, 0x09) => Slp [A, B, Imm]
+    (0, 0x09) => Slp [A, B] [Imm]
     (0, 0x0a) => Rdclk [A, B]
 
     // Memory
-    (0, 0x20) => Ld
+    (0, 0x20) => Ld [Dst, A] [Dst, Imm]
     #[strum(to_string = "ld.w")]
-    (0, 0x21) => Ldw
+    (0, 0x21) => Ldw [Dst, A] [Dst, Imm]
     #[strum(to_string = "ld.b")]
-    (0, 0x22) => Ldb
+    (0, 0x22) => Ldb [Dst, A] [Dst, Imm]
 
-    (0, 0x23) => Pld
+    (0, 0x23) => Pld [Dst, A] [Dst, Imm]
     #[strum(to_string = "pld.w")]
-    (0, 0x24) => Pldw
+    (0, 0x24) => Pldw [Dst, A] [Dst, Imm]
     #[strum(to_string = "pld.b")]
-    (0, 0x25) => Pldb
+    (0, 0x25) => Pldb [Dst, A] [Dst, Imm]
 
-    (0, 0x26) => Str
+    (0, 0x26) => Str [Dst, A] [Dst, Imm]
     #[strum(to_string = "str.w")]
-    (0, 0x27) => Strw
+    (0, 0x27) => Strw [Dst, A] [Dst, Imm]
     #[strum(to_string = "str.b")]
-    (0, 0x28) => Strb
+    (0, 0x28) => Strb [Dst, A] [Dst, Imm]
 
-    (0, 0x29) => Pstr
+    (0, 0x29) => Pstr [Dst, A] [Dst, Imm]
     #[strum(to_string = "pstr.w")]
-    (0, 0x2a) => Pstrw
+    (0, 0x2a) => Pstrw [Dst, A] [Dst, Imm]
     #[strum(to_string = "pstr.b")]
-    (0, 0x2b) => Pstrb
+    (0, 0x2b) => Pstrb [Dst, A] [Dst, Imm]
 
     // Math
-    (1, 0x00) => Nand [Dst, A, B, Imm]
-    (1, 0x01) => Or [Dst, A, B, Imm]
-    (1, 0x02) => And [Dst, A, B, Imm]
-    (1, 0x03) => Nor [Dst, A, B, Imm]
-    (1, 0x04) => Add [Dst, A, B, Imm]
-    (1, 0x05) => Sub [Dst, A, B, Imm]
-    (1, 0x06) => Xor [Dst, A, B, Imm]
-    (1, 0x07) => Lsl [Dst, A, B, Imm]
-    (1, 0x08) => Lsr [Dst, A, B, Imm]
-    (1, 0x09) => Mul [Dst, A, B, Imm]
-    (1, 0x0a) => Imul [Dst, A, B, Imm]
-    (1, 0x0b) => Div [Dst, A, B, Imm]
-    (1, 0x0c) => Idiv [Dst, A, B, Imm]
-    (1, 0x0d) => Rem [Dst, A, B, Imm]
-    (1, 0x0e) => Irem [Dst, A, B, Imm]
-    (1, 0x0f) => Mov [Dst, A, Imm]
-    (1, 0x10) => Inc [Dst, A, B, Imm]
-    (1, 0x11) => Dec [Dst, A, B, Imm]
-    (1, 0x12) => Se [Dst, A, B, Imm]
-    (1, 0x13) => Sne [Dst, A, B, Imm]
-    (1, 0x14) => Sl [Dst, A, B, Imm]
-    (1, 0x15) => Sle [Dst, A, B, Imm]
-    (1, 0x16) => Sg [Dst, A, B, Imm]
-    (1, 0x17) => Sge [Dst, A, B, Imm]
-    (1, 0x18) => Asr [Dst, A, B, Imm]
+    (1, 0x00) => Nand [Dst, A, B] [Dst, A, Imm]
+    (1, 0x01) => Or [Dst, A, B] [Dst, A, Imm]
+    (1, 0x02) => And [Dst, A, B] [Dst, A, Imm]
+    (1, 0x03) => Nor [Dst, A, B] [Dst, A, Imm]
+    (1, 0x04) => Add [Dst, A, B] [Dst, A, Imm]
+    (1, 0x05) => Sub [Dst, A, B] [Dst, A, Imm]
+    (1, 0x06) => Xor [Dst, A, B] [Dst, A, Imm]
+    (1, 0x07) => Lsl [Dst, A, B] [Dst, A, Imm]
+    (1, 0x08) => Lsr [Dst, A, B] [Dst, A, Imm]
+    (1, 0x09) => Mul [Dst, A, B] [Dst, A, Imm]
+    (1, 0x0a) => Imul [Dst, A, B] [Dst, A, Imm]
+    (1, 0x0b) => Div [Dst, A, B] [Dst, A, Imm]
+    (1, 0x0c) => Idiv [Dst, A, B] [Dst, A, Imm]
+    (1, 0x0d) => Rem [Dst, A, B] [Dst, A, Imm]
+    (1, 0x0e) => Irem [Dst, A, B] [Dst, A, Imm]
+    (1, 0x0f) => Mov [Dst, A] [Dst, Imm]
+    (1, 0x10) => Inc [Dst, A, B] [Dst, A, Imm]
+    (1, 0x11) => Dec [Dst, A, B] [Dst, A, Imm]
+    (1, 0x12) => Se [Dst, A, B] [Dst, A, Imm]
+    (1, 0x13) => Sne [Dst, A, B] [Dst, A, Imm]
+    (1, 0x14) => Sl [Dst, A, B] [Dst, A, Imm]
+    (1, 0x15) => Sle [Dst, A, B] [Dst, A, Imm]
+    (1, 0x16) => Sg [Dst, A, B] [Dst, A, Imm]
+    (1, 0x17) => Sge [Dst, A, B] [Dst, A, Imm]
+    (1, 0x18) => Asr [Dst, A, B] [Dst, A, Imm]
 
     // Cond
-    (2, 0x00) => Jmp [Dst, Imm]
-    (2, 0x01) => Je [A, B, Dst, Imm]
-    (2, 0x02) => Jne [A, B, Dst]
-    (2, 0x03) => Jl [A, B, Dst]
-    (2, 0x04) => Jge [A, B, Dst]
-    (2, 0x05) => Jle [A, B, Dst]
-    (2, 0x06) => Jg [A, B, Dst]
-    (2, 0x07) => Jb [A, B, Dst]
-    (2, 0x08) => Jae [A, B, Dst]
-    (2, 0x09) => Jbe [A, B, Dst]
-    (2, 0x0a) => Ja [A, B, Dst]
+    (2, 0x00) => Jmp [Dst] [Imm]
+    (2, 0x01) => Je [A, B, Dst] [A, B, Imm]
+    (2, 0x02) => Jne [A, B, Dst] [A, B, Imm]
+    (2, 0x03) => Jl [A, B, Dst] [A, B, Imm]
+    (2, 0x04) => Jge [A, B, Dst] [A, B, Imm]
+    (2, 0x05) => Jle [A, B, Dst] [A, B, Imm]
+    (2, 0x06) => Jg [A, B, Dst] [A, B, Imm]
+    (2, 0x07) => Jb [A, B, Dst] [A, B, Imm]
+    (2, 0x08) => Jae [A, B, Dst] [A, B, Imm]
+    (2, 0x09) => Jbe [A, B, Dst] [A, B, Imm]
+    (2, 0x0a) => Ja [A, B, Dst] [A, B, Imm]
 
     // Stack
     (3, 0x00) => Push [A]
     (3, 0x01) => Pop [Dst]
-    (3, 0x02) => Call [A, Imm]
+    (3, 0x02) => Call [A] [Imm]
     (3, 0x03) => Ret
-}
-
-fn mnemonic(reg: u8) -> &'static str {
-    match reg {
-        0x00 => "zr",
-        0x01 => "ra",
-        0x02 => "sp",
-        0x03 => "gp",
-        0x04 => "tp",
-        0x05 => "t0",
-        0x06 => "t1",
-        0x07 => "t2",
-        0x08 => "t3",
-        0x09 => "t4",
-        0x0a => "t5",
-        0x0b => "t6",
-        0x0c => "s0",
-        0x0d => "s1",
-        0x0e => "s2",
-        0x0f => "s3",
-        0x10 => "s4",
-        0x11 => "s5",
-        0x12 => "s6",
-        0x13 => "s7",
-        0x14 => "s8",
-        0x15 => "s9",
-        0x16 => "s10",
-        0x17 => "s11",
-        0x18 => "a0",
-        0x19 => "a1",
-        0x1a => "a2",
-        0x1b => "a3",
-        0x1c => "a4",
-        0x1d => "a5",
-        0x1e => "a6",
-        0x1f => "a7",
-
-        _ => "<un>",
-    }
 }
