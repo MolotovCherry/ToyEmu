@@ -834,14 +834,18 @@ impl Registers {
             return;
         }
 
-        let elem = self.array_mut().get_mut(reg as usize).unwrap();
-
-        *elem = val;
+        // SAFETY: Registers has 16 registers, Reg has 16 registers
+        // Additionally, the indexes/disciminants line up
+        unsafe {
+            *self.array_mut().get_unchecked_mut(reg as usize) = val;
+        }
     }
 
     /// Read register based on index
     #[inline]
     pub fn get_reg(&self, reg: Reg) -> BitSize {
-        *self.array().get(reg as usize).unwrap()
+        // SAFETY: Registers has 16 registers, Reg has 16 registers
+        // Additionally, the indexes/disciminants line up
+        unsafe { *self.array().get_unchecked(reg as usize) }
     }
 }
