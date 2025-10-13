@@ -301,7 +301,7 @@ impl Cpu {
             }
 
             Mov => {
-                let a = get_imm_or!(inst.b);
+                let a = get_imm_or!(inst.a);
                 self.gp.set_reg(inst.dst, a);
             }
 
