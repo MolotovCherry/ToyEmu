@@ -7,16 +7,16 @@
 // Z = Immediate value
 //
 // Instruction encoding if not an immediate value:
-// MMIDDDDD OOOOOOOO AAAAAAAA BBBBBBBB
+// MMIDDDDD OOOOOOOO 000AAAAA 000BBBBB
 // Instruction encoding if an immediate value:
-// MMIDDDDD OOOOOOOO AAAAAAAA BBBBBBBB ZZZZZZZZ ZZZZZZZZ ZZZZZZZZ ZZZZZZZZ
+// MMIDDDDD OOOOOOOO 000AAAAA 000BBBBB ZZZZZZZZ ZZZZZZZZ ZZZZZZZZ ZZZZZZZZ
 
 use std::fmt::Display;
 
 use strum::Display;
 use yansi::Paint as _;
 
-use crate::{BitSize, cpu::Registers};
+use crate::{BitSize, cpu::Reg};
 
 #[derive(Debug, Copy, Clone, thiserror::Error)]
 pub enum InstError {
@@ -29,13 +29,13 @@ pub enum InstError {
 #[derive(Debug, Copy, Clone)]
 pub struct Instruction {
     pub ty: InstructionType,
-    pub dst: u8,
-    pub a: u8,
-    pub b: u8,
-    pub c: u8,
-    pub d: u8,
-    pub e: u8,
-    pub f: u8,
+    pub dst: Reg,
+    pub a: Reg,
+    pub b: Reg,
+    pub c: Reg,
+    pub d: Reg,
+    pub e: Reg,
+    pub f: Reg,
     pub has_imm: bool,
     pub imm: BitSize,
 }
@@ -52,18 +52,18 @@ impl Instruction {
 
         let ctrl = inst[0];
         let opcode = inst[1];
-        let a = inst[2];
-        let b = inst[3];
+        let a = Reg::from(inst[2]);
+        let b = Reg::from(inst[3]);
 
         // these are all in BE
         let mode = ctrl.rotate_left(2) & 0b11;
         let has_imm = ((ctrl >> 5) & 0b1) == 1;
-        let dst = ctrl & 0b11111;
+        let dst = Reg::from(ctrl); // this already strips 5 LSB
 
-        let mut c = 0;
-        let mut d = 0;
-        let mut e = 0;
-        let mut f = 0;
+        let mut c = Reg::Zr;
+        let mut d = Reg::Zr;
+        let mut e = Reg::Zr;
+        let mut f = Reg::Zr;
 
         // imm is in LE
         let imm = if has_imm {
@@ -71,8 +71,16 @@ impl Instruction {
                 return Err(InstError::WrongSize(inst.len()));
             }
 
-            [c, d, e, f] = inst[4..8].try_into().unwrap();
-            BitSize::from_le_bytes([c, d, e, f])
+            let [c_, d_, e_, f_] = inst[4..8].try_into().unwrap();
+            let imm = BitSize::from_le_bytes([c_, d_, e_, f_]);
+
+            // we only need 5 bits to guarantee the reg size
+            c = Reg::from(c_);
+            d = Reg::from(d_);
+            e = Reg::from(e_);
+            f = Reg::from(f_);
+
+            imm
         } else {
             Default::default()
         };
@@ -119,13 +127,13 @@ impl Display for Instruction {
                     Register::A => self.a,
                     Register::B => self.b,
 
-                    Register::C => (self.imm >> 24) as _,
+                    Register::C => Reg::from(self.imm >> 24),
 
-                    Register::D => (self.imm >> 16) as _,
+                    Register::D => Reg::from(self.imm >> 16),
 
-                    Register::E => (self.imm >> 8) as _,
+                    Register::E => Reg::from(self.imm >> 8),
 
-                    Register::F => self.imm as u8,
+                    Register::F => Reg::from(self.imm),
 
                     Register::Imm => {
                         if i > 0 {
@@ -147,9 +155,9 @@ impl Display for Instruction {
                 };
 
                 if i > 0 {
-                    write!(f, ", {}", Registers::mnemonic(reg).bright_cyan())?;
+                    write!(f, ", {}", reg.bright_cyan())?;
                 } else {
-                    write!(f, " {}", Registers::mnemonic(reg).bright_cyan())?;
+                    write!(f, " {}", reg.bright_cyan())?;
                 }
             }
         }

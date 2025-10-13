@@ -2,6 +2,7 @@ use std::{slice, time::SystemTime};
 
 use bstr::ByteSlice;
 use bytemuck::{AnyBitPattern, NoUninit};
+use strum::Display;
 
 use crate::{
     BitSize,
@@ -14,8 +15,6 @@ use crate::emulator::FREQ;
 
 #[derive(Debug, Copy, Clone, thiserror::Error)]
 pub enum CpuError {
-    #[error("{0}")]
-    Reg(#[from] RegError),
     #[error("Unsupported instruction: {0:?}")]
     UnsupportedInst(Instruction),
 }
@@ -53,7 +52,7 @@ impl Cpu {
         }
 
         macro_rules! get_imm_or {
-            ($reg:expr) => {{ get_imm_or_else!(self.gp.get_reg($reg)?) }};
+            ($reg:expr) => {{ get_imm_or_else!(self.gp.get_reg($reg)) }};
         }
 
         match inst.ty {
@@ -65,8 +64,8 @@ impl Cpu {
             }
 
             Pr => {
-                let low = self.gp.get_reg(inst.a)?;
-                let high = self.gp.get_reg(inst.b)?;
+                let low = self.gp.get_reg(inst.a);
+                let high = self.gp.get_reg(inst.b);
 
                 if let Some(view) = mem.view(low..high) {
                     let data = view.as_bstr();
@@ -75,8 +74,8 @@ impl Cpu {
             }
 
             Epr => {
-                let low = self.gp.get_reg(inst.a)?;
-                let high = self.gp.get_reg(inst.b)?;
+                let low = self.gp.get_reg(inst.a);
+                let high = self.gp.get_reg(inst.b);
 
                 let data = mem[low..high].as_bstr();
                 eprint!("{data}");
@@ -93,14 +92,14 @@ impl Cpu {
                 let cv = (time >> 32) as u32;
                 let dv = time as u32;
 
-                self.gp.set_reg(inst.a, dv)?;
-                self.gp.set_reg(inst.b, cv)?;
-                self.gp.set_reg(inst.c, bv)?;
-                self.gp.set_reg(inst.d, av)?;
+                self.gp.set_reg(inst.a, dv);
+                self.gp.set_reg(inst.b, cv);
+                self.gp.set_reg(inst.c, bv);
+                self.gp.set_reg(inst.d, av);
             }
 
             Rdpc => {
-                self.gp.set_reg(inst.dst, self.pc)?;
+                self.gp.set_reg(inst.dst, self.pc);
             }
 
             Kbrd => {
@@ -117,8 +116,8 @@ impl Cpu {
 
             Slp => {
                 let val = get_imm_or_else! {
-                    let val = self.gp.get_reg(inst.a)?;
-                    let val2 = self.gp.get_reg(inst.b)?;
+                    let val = self.gp.get_reg(inst.a);
+                    let val2 = self.gp.get_reg(inst.b);
 
                     (val as u64) << 32 | (val2 as u64)
                 };
@@ -137,8 +136,8 @@ impl Cpu {
                 let high = (self.clk >> 32) as BitSize;
                 let low = (self.clk & 0xffffffff) as BitSize;
 
-                self.gp.set_reg(inst.a, low)?;
-                self.gp.set_reg(inst.b, high)?;
+                self.gp.set_reg(inst.a, low);
+                self.gp.set_reg(inst.b, high);
             }
 
             #[rustfmt::skip]
@@ -176,174 +175,174 @@ impl Cpu {
             //
 
             Nand => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, !(a & b))?;
+                self.gp.set_reg(inst.dst, !(a & b));
             }
 
             Or => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, a | b)?;
+                self.gp.set_reg(inst.dst, a | b);
             }
 
             And => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, a & b)?;
+                self.gp.set_reg(inst.dst, a & b);
             }
 
             Nor => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, !(a | b))?;
+                self.gp.set_reg(inst.dst, !(a | b));
             }
 
             Add => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, a.wrapping_add(b))?;
+                self.gp.set_reg(inst.dst, a.wrapping_add(b));
             }
 
             Sub => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, a.wrapping_sub(b))?;
+                self.gp.set_reg(inst.dst, a.wrapping_sub(b));
             }
 
             Xor => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, a ^ b)?;
+                self.gp.set_reg(inst.dst, a ^ b);
             }
 
             Lsl => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, a << b)?;
+                self.gp.set_reg(inst.dst, a << b);
             }
 
             Lsr => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, a >> b)?;
+                self.gp.set_reg(inst.dst, a >> b);
             }
 
             Mul => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, a.wrapping_mul(b))?;
+                self.gp.set_reg(inst.dst, a.wrapping_mul(b));
             }
 
             Imul => {
-                let a = self.gp.get_reg(inst.a)? as i32;
+                let a = self.gp.get_reg(inst.a) as i32;
                 let b = get_imm_or!(inst.b) as i32;
 
-                self.gp.set_reg(inst.dst, a.wrapping_mul(b) as u32)?;
+                self.gp.set_reg(inst.dst, a.wrapping_mul(b) as u32);
             }
 
             Div => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
                 let val = if a != 0 { a.wrapping_div(b) } else { 0 };
-                self.gp.set_reg(inst.dst, val)?;
+                self.gp.set_reg(inst.dst, val);
             }
 
             Idiv => {
-                let a = self.gp.get_reg(inst.a)? as i32;
+                let a = self.gp.get_reg(inst.a) as i32;
                 let b = get_imm_or!(inst.b) as i32;
 
                 let val = if a != 0 { a.wrapping_div(b) } else { 0 };
-                self.gp.set_reg(inst.dst, val as u32)?;
+                self.gp.set_reg(inst.dst, val as u32);
             }
 
             Rem => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, a % b)?;
+                self.gp.set_reg(inst.dst, a % b);
             }
 
             Irem => {
-                let a = self.gp.get_reg(inst.a)? as i32;
+                let a = self.gp.get_reg(inst.a) as i32;
                 let b = get_imm_or!(inst.b) as i32;
 
-                self.gp.set_reg(inst.dst, (a % b) as u32)?;
+                self.gp.set_reg(inst.dst, (a % b) as u32);
             }
 
             Mov => {
                 let a = get_imm_or!(inst.b);
-                self.gp.set_reg(inst.dst, a)?;
+                self.gp.set_reg(inst.dst, a);
             }
 
             Inc => {
-                let a = self.gp.get_reg(inst.a)?.wrapping_add(1);
-                self.gp.set_reg(inst.dst, a)?;
+                let a = self.gp.get_reg(inst.a).wrapping_add(1);
+                self.gp.set_reg(inst.dst, a);
             }
 
             Dec => {
-                let a = self.gp.get_reg(inst.a)?.wrapping_sub(1);
-                self.gp.set_reg(inst.dst, a)?;
+                let a = self.gp.get_reg(inst.a).wrapping_sub(1);
+                self.gp.set_reg(inst.dst, a);
             }
 
             Se => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, (a == b) as _)?;
+                self.gp.set_reg(inst.dst, (a == b) as _);
             }
 
             Sne => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let b = get_imm_or!(inst.b);
 
-                self.gp.set_reg(inst.dst, (a != b) as _)?;
+                self.gp.set_reg(inst.dst, (a != b) as _);
             }
 
             Sl => {
-                let a = self.gp.get_reg(inst.a)? as i32;
+                let a = self.gp.get_reg(inst.a) as i32;
                 let b = get_imm_or!(inst.b) as i32;
 
-                self.gp.set_reg(inst.dst, (a < b) as _)?;
+                self.gp.set_reg(inst.dst, (a < b) as _);
             }
 
             Sle => {
-                let a = self.gp.get_reg(inst.a)? as i32;
+                let a = self.gp.get_reg(inst.a) as i32;
                 let b = get_imm_or!(inst.b) as i32;
 
-                self.gp.set_reg(inst.dst, (a <= b) as _)?;
+                self.gp.set_reg(inst.dst, (a <= b) as _);
             }
 
             Sg => {
-                let a = self.gp.get_reg(inst.a)? as i32;
+                let a = self.gp.get_reg(inst.a) as i32;
                 let b = get_imm_or!(inst.b) as i32;
 
-                self.gp.set_reg(inst.dst, (a > b) as _)?;
+                self.gp.set_reg(inst.dst, (a > b) as _);
             }
 
             Sge => {
-                let a = self.gp.get_reg(inst.a)? as i32;
+                let a = self.gp.get_reg(inst.a) as i32;
                 let b = get_imm_or!(inst.b) as i32;
 
-                self.gp.set_reg(inst.dst, (a >= b) as _)?;
+                self.gp.set_reg(inst.dst, (a >= b) as _);
             }
 
             Asr => {
-                let a = self.gp.get_reg(inst.a)? as i32;
+                let a = self.gp.get_reg(inst.a) as i32;
                 let b = get_imm_or!(inst.b) as i32;
 
-                self.gp.set_reg(inst.dst, (a >> b) as u32)?;
+                self.gp.set_reg(inst.dst, (a >> b) as u32);
             }
 
             #[rustfmt::skip]
@@ -360,8 +359,8 @@ impl Cpu {
             Je => {
                 let dst = get_imm_or!(inst.dst);
 
-                let a = self.gp.get_reg(inst.a)?;
-                let b = self.gp.get_reg(inst.b)?;
+                let a = self.gp.get_reg(inst.a);
+                let b = self.gp.get_reg(inst.b);
 
                 if a == b {
                     self.pc = dst;
@@ -372,8 +371,8 @@ impl Cpu {
             Jne => {
                 let dst = get_imm_or!(inst.dst);
 
-                let a = self.gp.get_reg(inst.a)?;
-                let b = self.gp.get_reg(inst.b)?;
+                let a = self.gp.get_reg(inst.a);
+                let b = self.gp.get_reg(inst.b);
 
                 if a != b {
                     self.pc = dst;
@@ -384,8 +383,8 @@ impl Cpu {
             Jl => {
                 let dst = get_imm_or!(inst.dst);
 
-                let a = self.gp.get_reg(inst.a)? as i32;
-                let b = self.gp.get_reg(inst.b)? as i32;
+                let a = self.gp.get_reg(inst.a) as i32;
+                let b = self.gp.get_reg(inst.b) as i32;
 
                 if a < b {
                     self.pc = dst;
@@ -396,8 +395,8 @@ impl Cpu {
             Jge => {
                 let dst = get_imm_or!(inst.dst);
 
-                let a = self.gp.get_reg(inst.a)? as i32;
-                let b = self.gp.get_reg(inst.b)? as i32;
+                let a = self.gp.get_reg(inst.a) as i32;
+                let b = self.gp.get_reg(inst.b) as i32;
 
                 if a >= b {
                     self.pc = dst;
@@ -408,8 +407,8 @@ impl Cpu {
             Jle => {
                 let dst = get_imm_or!(inst.dst);
 
-                let a = self.gp.get_reg(inst.a)? as i32;
-                let b = self.gp.get_reg(inst.b)? as i32;
+                let a = self.gp.get_reg(inst.a) as i32;
+                let b = self.gp.get_reg(inst.b) as i32;
 
                 if a <= b {
                     self.pc = dst;
@@ -420,8 +419,8 @@ impl Cpu {
             Jg => {
                 let dst = get_imm_or!(inst.dst);
 
-                let a = self.gp.get_reg(inst.a)? as i32;
-                let b = self.gp.get_reg(inst.b)? as i32;
+                let a = self.gp.get_reg(inst.a) as i32;
+                let b = self.gp.get_reg(inst.b) as i32;
 
                 if a > b {
                     self.pc = dst;
@@ -432,8 +431,8 @@ impl Cpu {
             Jb => {
                 let dst = get_imm_or!(inst.dst);
 
-                let a = self.gp.get_reg(inst.a)?;
-                let b = self.gp.get_reg(inst.b)?;
+                let a = self.gp.get_reg(inst.a);
+                let b = self.gp.get_reg(inst.b);
 
                 if a < b {
                     self.pc = dst;
@@ -444,8 +443,8 @@ impl Cpu {
             Jae => {
                 let dst = get_imm_or!(inst.dst);
 
-                let a = self.gp.get_reg(inst.a)?;
-                let b = self.gp.get_reg(inst.b)?;
+                let a = self.gp.get_reg(inst.a);
+                let b = self.gp.get_reg(inst.b);
 
                 if a >= b {
                     self.pc = dst;
@@ -456,8 +455,8 @@ impl Cpu {
             Jbe => {
                 let dst = get_imm_or!(inst.dst);
 
-                let a = self.gp.get_reg(inst.a)?;
-                let b = self.gp.get_reg(inst.b)?;
+                let a = self.gp.get_reg(inst.a);
+                let b = self.gp.get_reg(inst.b);
 
                 if a <= b {
                     self.pc = dst;
@@ -468,8 +467,8 @@ impl Cpu {
             Ja => {
                 let dst = get_imm_or!(inst.dst);
 
-                let a = self.gp.get_reg(inst.a)?;
-                let b = self.gp.get_reg(inst.b)?;
+                let a = self.gp.get_reg(inst.a);
+                let b = self.gp.get_reg(inst.b);
 
                 if a > b {
                     self.pc = dst;
@@ -483,7 +482,7 @@ impl Cpu {
             //
 
             Push => {
-                let a = self.gp.get_reg(inst.a)?;
+                let a = self.gp.get_reg(inst.a);
                 let old_sp = self.gp.sp;
 
                 self.gp.sp = self.gp.sp.wrapping_sub(size_of::<BitSize>() as _);
@@ -503,7 +502,7 @@ impl Cpu {
                 let bytes = &mem[self.gp.sp..self.gp.sp + size_of::<BitSize>() as BitSize];
                 let data = BitSize::from_le_bytes(bytes.try_into().unwrap());
                 self.gp.sp = self.gp.sp.wrapping_add(size_of::<BitSize>() as _);
-                self.gp.set_reg(inst.dst, data)?;
+                self.gp.set_reg(inst.dst, data);
 
                 *clk = 2;
             }
@@ -556,10 +555,6 @@ impl Cpu {
         *self = Self::default();
     }
 }
-
-#[derive(Debug, Copy, Clone, thiserror::Error)]
-#[error("Invalid register: 0x{0:02x}")]
-pub struct RegError(u8);
 
 /// Accessible CPU registers
 ///
@@ -673,6 +668,93 @@ impl Default for Registers {
     }
 }
 
+#[derive(Copy, Clone, Debug, Display)]
+#[strum(serialize_all = "lowercase")]
+pub enum Reg {
+    Zr,
+    Ra,
+    Sp,
+    Gp,
+    Tp,
+    T0,
+    T1,
+    T2,
+    T3,
+    T4,
+    T5,
+    T6,
+    S0,
+    S1,
+    S2,
+    S3,
+    S4,
+    S5,
+    S6,
+    S7,
+    S8,
+    S9,
+    S10,
+    S11,
+    A0,
+    A1,
+    A2,
+    A3,
+    A4,
+    A5,
+    A6,
+    A7,
+}
+
+macro_rules! impl_reg {
+    ($($num:ty)+) => {
+        $(
+            impl From<$num> for Reg {
+                fn from(value: $num) -> Self {
+                    match value & 0b11111 {
+                        0x00 => Self::Zr,
+                        0x01 => Self::Ra,
+                        0x02 => Self::Sp,
+                        0x03 => Self::Gp,
+                        0x04 => Self::Tp,
+                        0x05 => Self::T0,
+                        0x06 => Self::T1,
+                        0x07 => Self::T2,
+                        0x08 => Self::T3,
+                        0x09 => Self::T4,
+                        0x0a => Self::T5,
+                        0x0b => Self::T6,
+                        0x0c => Self::S0,
+                        0x0d => Self::S1,
+                        0x0e => Self::S2,
+                        0x0f => Self::S3,
+                        0x10 => Self::S4,
+                        0x11 => Self::S5,
+                        0x12 => Self::S6,
+                        0x13 => Self::S7,
+                        0x14 => Self::S8,
+                        0x15 => Self::S9,
+                        0x16 => Self::S10,
+                        0x17 => Self::S11,
+                        0x18 => Self::A0,
+                        0x19 => Self::A1,
+                        0x1a => Self::A2,
+                        0x1b => Self::A3,
+                        0x1c => Self::A4,
+                        0x1d => Self::A5,
+                        0x1e => Self::A6,
+                        0x1f => Self::A7,
+
+                        // 5 bits guarantees only 0x00-0x1f
+                        _ => unreachable!(),
+                    }
+                }
+            }
+        )+
+    };
+}
+
+impl_reg!(u8 u32);
+
 impl Registers {
     #[inline]
     fn array(&self) -> &[BitSize] {
@@ -702,66 +784,20 @@ impl Registers {
 
     /// Set register based on index
     #[inline]
-    pub fn set_reg(&mut self, reg: u8, val: BitSize) -> Result<(), RegError> {
+    pub fn set_reg(&mut self, reg: Reg, val: BitSize) {
         // zr is a noop
-        if reg == 0 {
-            return Ok(());
+        if matches!(reg, Reg::Zr) {
+            return;
         }
 
-        let elem = self
-            .array_mut()
-            .get_mut(reg as usize)
-            .ok_or(RegError(reg))?;
+        let elem = self.array_mut().get_mut(reg as usize).unwrap();
 
         *elem = val;
-
-        Ok(())
     }
 
     /// Read register based on index
     #[inline]
-    pub fn get_reg(&self, reg: u8) -> Result<BitSize, RegError> {
-        let elem = *self.array().get(reg as usize).ok_or(RegError(reg))?;
-
-        Ok(elem)
-    }
-
-    pub fn mnemonic(reg: u8) -> &'static str {
-        match reg {
-            0x00 => "zr",
-            0x01 => "ra",
-            0x02 => "sp",
-            0x03 => "gp",
-            0x04 => "tp",
-            0x05 => "t0",
-            0x06 => "t1",
-            0x07 => "t2",
-            0x08 => "t3",
-            0x09 => "t4",
-            0x0a => "t5",
-            0x0b => "t6",
-            0x0c => "s0",
-            0x0d => "s1",
-            0x0e => "s2",
-            0x0f => "s3",
-            0x10 => "s4",
-            0x11 => "s5",
-            0x12 => "s6",
-            0x13 => "s7",
-            0x14 => "s8",
-            0x15 => "s9",
-            0x16 => "s10",
-            0x17 => "s11",
-            0x18 => "a0",
-            0x19 => "a1",
-            0x1a => "a2",
-            0x1b => "a3",
-            0x1c => "a4",
-            0x1d => "a5",
-            0x1e => "a6",
-            0x1f => "a7",
-
-            _ => "<un>",
-        }
+    pub fn get_reg(&self, reg: Reg) -> BitSize {
+        *self.array().get(reg as usize).unwrap()
     }
 }
