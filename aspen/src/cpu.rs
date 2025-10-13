@@ -1,4 +1,7 @@
-use std::{slice, time::SystemTime};
+use std::{
+    slice,
+    time::{Instant, SystemTime},
+};
 
 use bstr::ByteSlice;
 use bytemuck::{AnyBitPattern, NoUninit};
@@ -59,6 +62,17 @@ impl Cpu {
             ($reg:expr) => {{ get_imm_or_else!(self.gp.get_reg($reg)) }};
         }
 
+        let mut add_cycles_from_micros = |val: u64| {
+            #[cfg(feature = "steady-clock")]
+            if val > 0 {
+                // add cycles consistent with frequency
+                let fre = const { FREQ.as_micros() as u64 };
+                // adjust the clock frequency scaled by our wait time
+                // waits in multiples of FREQ
+                *clk = val.max(fre).div_ceil(fre) as u32;
+            }
+        };
+
         match inst.ty {
             Nop => (),
 
@@ -73,7 +87,10 @@ impl Cpu {
 
                 if let Some(view) = mem.view(low..high) {
                     let data = view.as_bstr();
+                    let t = Instant::now();
                     print!("{data}");
+                    let e = t.elapsed();
+                    add_cycles_from_micros(e.as_micros() as _);
                 }
             }
 
@@ -81,8 +98,13 @@ impl Cpu {
                 let low = self.gp.get_reg(inst.a);
                 let high = self.gp.get_reg(inst.b);
 
-                let data = mem[low..high].as_bstr();
-                eprint!("{data}");
+                if let Some(view) = mem.view(low..high) {
+                    let data = view.as_bstr();
+                    let t = Instant::now();
+                    eprint!("{data}");
+                    let e = t.elapsed();
+                    add_cycles_from_micros(e.as_micros() as _);
+                }
             }
 
             Tme => {
@@ -126,14 +148,7 @@ impl Cpu {
                     (val as u64) << 32 | (val2 as u64)
                 };
 
-                #[cfg(feature = "steady-clock")]
-                if val > 0 {
-                    // add cycles consistent with frequency
-                    let fre = const { FREQ.as_micros() as u64 };
-                    // adjust the clock frequency scaled by our wait time
-                    // waits in multiples of FREQ
-                    *clk = val.max(fre).div_ceil(fre) as u32;
-                }
+                add_cycles_from_micros(val);
             }
 
             Rdclk => {
