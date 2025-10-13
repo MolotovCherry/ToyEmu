@@ -179,14 +179,14 @@ impl Display for Instruction {
 
                 if use_brackets {
                     if i.saturating_sub(offset) > 0 {
-                        write!(f, ", [{}]", reg.bright_cyan())?;
+                        write!(f, ", [{}]", reg.bright_blue())?;
                     } else {
-                        write!(f, " [{}]", reg.bright_cyan())?;
+                        write!(f, " [{}]", reg.bright_blue())?;
                     }
                 } else if i.saturating_sub(offset) > 0 {
-                    write!(f, ", {}", reg.bright_cyan())?;
+                    write!(f, ", {}", reg.bright_blue())?;
                 } else {
-                    write!(f, " {}", reg.bright_cyan())?;
+                    write!(f, " {}", reg.bright_blue())?;
                 }
 
                 use_brackets = false;
