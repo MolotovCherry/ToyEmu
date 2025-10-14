@@ -6,51 +6,46 @@ pub fn run(input: TokenStream) -> TokenStream {
     let mut source = String::new();
     let mut line = None;
 
-    let mut new = true;
-    let mut prev_was_dot = false;
-    let mut iter = input.into_iter().peekable();
-    while let Some(tree) = iter.next() {
+    let mut start_col = 0;
+    let mut first = true;
+    let mut new_line = true;
+    let mut last_col = 0;
+    for tree in input {
         let span = tree.span();
+
+        if first {
+            start_col = span.column();
+            last_col = span.end().column();
+            first = false;
+        }
 
         let line = line.get_or_insert(span.line());
 
         if *line < span.line() {
-            source.push('\n');
-            *line = span.line();
-            new = true;
-        }
-
-        if let Some(mut s) = tree.span().source_text() {
-            let next = iter
-                .peek()
-                .and_then(|t| t.span().source_text())
-                .unwrap_or_default();
-
-            #[allow(clippy::match_like_matches_macro)]
-            let add_next = match &*next {
-                ";" => true,
-                _ => false,
-            };
-
-            #[allow(clippy::match_like_matches_macro)]
-            let skip_next = match &*next {
-                "." => true,
-                _ => false,
-            };
-
-            if (s.contains([',', ';']) || add_next || new || prev_was_dot) && !skip_next {
-                s.push(' ');
-                prev_was_dot = false;
-            }
-
-            if s == "." {
-                prev_was_dot = true;
-            }
-
+            let how_many = span.line() - *line;
+            let s = "\n".repeat(how_many);
             source.push_str(&s);
+            *line = span.line();
+            new_line = true;
         }
 
-        new = false;
+        if let Some(s) = span.source_text() {
+            let how_many = if new_line {
+                let column = span.column();
+                column - start_col
+            } else if last_col < span.column() {
+                span.column() - last_col
+            } else {
+                0
+            };
+
+            let spaces = " ".repeat(how_many);
+
+            source.push_str(&format!("{spaces}{s}"));
+        }
+
+        last_col = span.end().column();
+        new_line = false;
     }
 
     quote! {
