@@ -6,18 +6,10 @@ pub fn run(input: TokenStream) -> TokenStream {
     let mut source = String::new();
     let mut line = None;
 
-    let mut start_col = 0;
-    let mut first = true;
     let mut new_line = true;
     let mut last_col = 0;
     for tree in input {
         let span = tree.span();
-
-        if first {
-            start_col = span.column();
-            last_col = span.end().column();
-            first = false;
-        }
 
         let line = line.get_or_insert(span.line());
 
@@ -26,26 +18,24 @@ pub fn run(input: TokenStream) -> TokenStream {
             let s = "\n".repeat(how_many);
             source.push_str(&s);
             *line = span.line();
+            last_col = 0;
             new_line = true;
         }
 
         if let Some(s) = span.source_text() {
             let how_many = if new_line {
-                let column = span.column();
-                column - start_col
-            } else if last_col < span.column() {
-                span.column() - last_col
+                new_line = false;
+                span.column().saturating_sub(1)
             } else {
-                0
+                span.column() - last_col
             };
 
             let spaces = " ".repeat(how_many);
-
-            source.push_str(&format!("{spaces}{s}"));
+            source.push_str(&spaces);
+            source.push_str(&s);
         }
 
         last_col = span.end().column();
-        new_line = false;
     }
 
     quote! {
