@@ -1,5 +1,6 @@
 use std::{
     ffi::c_void,
+    marker::PhantomData,
     ops::{
         Index, IndexMut, Range, RangeBounds, RangeFrom, RangeFull, RangeInclusive, RangeTo,
         RangeToInclusive,
@@ -27,6 +28,7 @@ const MEM_SIZE: usize = BitSize::MAX as usize + 1;
 
 pub struct Memory {
     data: *mut [u8; MEM_SIZE],
+    phantom: PhantomData<Box<[u8; MEM_SIZE]>>,
 }
 
 unsafe impl Send for Memory {}
@@ -60,6 +62,7 @@ impl Memory {
         // therefore this cast is valid
         let this = Self {
             data: ptr.cast::<[u8; MEM_SIZE]>(),
+            phantom: PhantomData,
         };
 
         Ok(this)
