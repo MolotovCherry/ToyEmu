@@ -3,12 +3,15 @@ use std::{
     sync::{LazyLock, Mutex, MutexGuard},
 };
 
-use graft_run::run;
+use aho_corasick::AhoCorasick;
+use enumflags2::BitFlag;
+use graft_run::{run, try_run_with};
 use serial_test::serial;
 
 pub use super::*;
 
-struct EmuGuard<'a>(MutexGuard<'a, Emulator>);
+#[derive(Debug)]
+struct EmuGuard<'a>(MutexGuard<'a, Emulator>, bool);
 
 impl Deref for EmuGuard<'_> {
     type Target = Emulator;
@@ -27,18 +30,31 @@ impl DerefMut for EmuGuard<'_> {
 impl Drop for EmuGuard<'_> {
     fn drop(&mut self) {
         self.cpu.zeroize();
-        self.mem.zeroize().expect("zeroize to succeed");
+        // mem dirty flag
+        // skip mem resetting if there's nothing to reset, to save on processing
+        if self.1 {
+            self.mem.zeroize().expect("zeroize to succeed");
+        }
+        self.mem.change_prot(.., Prot::Read | Prot::Write).unwrap();
     }
 }
 
-fn run(asm: &str) -> EmuGuard<'_> {
+fn try_run(asm: &str) -> Result<EmuGuard<'_>, EmuError> {
+    try_run_with(|_| (), asm)
+}
+
+fn try_run_with(f: impl FnOnce(&mut Emulator), asm: &str) -> Result<EmuGuard<'_>, EmuError> {
     static LOCK: LazyLock<Mutex<Emulator>> =
         LazyLock::new(|| Mutex::new(Emulator::new(&[]).unwrap()));
 
     LOCK.clear_poison();
 
+    let patterns = &["str", "str.w", "str.b"];
+    let ac = AhoCorasick::new(patterns).unwrap();
+    let dirty = ac.find(asm).is_some();
+
     // important. this will keep it synchronous
-    let mut guard = LOCK.lock().unwrap();
+    let mut guard = EmuGuard(LOCK.lock().unwrap(), dirty);
 
     let asm = format!("{asm}\n\n; auto inserted\nhlt");
 
@@ -47,11 +63,55 @@ fn run(asm: &str) -> EmuGuard<'_> {
         Err(e) => panic!("{e}"),
     };
 
-    guard.write_program(&data);
+    guard.write_program(&data)?;
 
-    guard.run().unwrap();
+    f(&mut guard);
 
-    EmuGuard(guard)
+    guard.run()?;
+
+    Ok(guard)
+}
+
+#[test]
+#[serial]
+fn test_prot() {
+    let handle = |emu: &mut Emulator| {
+        emu.mem
+            .change_prot(0..100, Prot::Read | Prot::Write)
+            .unwrap();
+    };
+
+    let res = try_run_with! {
+        handle,
+
+        mov t0, 0x0 ; location
+        str.b [t0], 0x00
+    };
+
+    // test execution can't execute
+    let res = res.map(|_| ());
+    let e = Err(EmuError::Mem(MemError::PageFault(Prot::Execute.into())));
+    assert_eq!(e, res);
+
+    // --
+
+    let handle = |emu: &mut Emulator| {
+        emu.mem.change_prot(0x12345678, Prot::empty()).unwrap();
+    };
+
+    let res = try_run_with! {
+        handle,
+
+        mov t0, 0x12345678 ; location
+        str.b [t0], 0x00
+    };
+
+    // test execution can't execute
+    let res = res.map(|_| ());
+    let e = Err(EmuError::Cpu(CpuError::Mem(MemError::PageFault(
+        Prot::Write.into(),
+    ))));
+    assert_eq!(e, res);
 }
 
 #[test]
@@ -133,6 +193,7 @@ fn test_mov() {
          mov t0, 0x12345678
          mov t1, t0
     };
+
     assert_eq!(emu.cpu.gp.t0, 0x12345678);
     assert_eq!(emu.cpu.gp.t1, 0x12345678);
 }

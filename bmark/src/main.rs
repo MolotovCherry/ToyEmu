@@ -6,7 +6,7 @@ use aspen::emulator::Emulator;
 fn main() {
     let mut emu = Emulator::new(&[]).expect("creation to succeed");
 
-    let mut run = |asm| {
+    let mut try_run = |asm| {
         let asm = format!("{asm}\n\n; auto inserted\nhlt");
 
         let data = match graft::assemble("<input>.asm", &asm) {
@@ -30,7 +30,7 @@ fn main() {
             }
         }
 
-        emu.write_program(&data);
+        emu.write_program(&data).unwrap();
 
         let start = Instant::now();
 
@@ -45,6 +45,8 @@ fn main() {
             elapsed.as_nanos() as f64 / emu.cpu.clk as f64,
             emu.cpu.clk as f64 / elapsed.as_micros() as f64
         );
+
+        Ok::<(), ()>(())
     };
 
     run! {

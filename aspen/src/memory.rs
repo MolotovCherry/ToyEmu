@@ -7,9 +7,11 @@ use std::{
     },
 };
 
+use enumflags2::{BitFlags, bitflags};
+
 use crate::BitSize;
 
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error, PartialEq)]
 pub enum MemError {
     #[error("Invalid access: size {0} @ 0x{1:08x}")]
     InvalidAddr(BitSize, BitSize),
@@ -19,15 +21,37 @@ pub enum MemError {
     #[cfg(windows)]
     #[error("Winapi Error: {0}")]
     WinApi(#[from] windows::core::Error),
+    #[error("Page fault: {0} access denied")]
+    PageFault(BitFlags<Prot>),
+    #[error("Failed to change Prot")]
+    Overflow,
     #[cfg(unix)]
     #[error("I/O Error: {0}")]
     Io(std::sync::Arc<std::io::Error>),
 }
 
 const MEM_SIZE: usize = BitSize::MAX as usize + 1;
+pub const PAGE_SIZE: usize = {
+    let size = 4096;
+    assert!(MEM_SIZE.is_multiple_of(size));
+    size
+};
 
+/// Protection state of page
+#[rustfmt::skip]
+#[bitflags]
+#[repr(u8)]
+#[derive(Copy, Clone, Debug)]
+pub enum Prot {
+    Read    = 0b001,
+    Write   = 0b010,
+    Execute = 0b100,
+}
+
+#[derive(Debug)]
 pub struct Memory {
     data: *mut [u8; MEM_SIZE],
+    pages: Vec<BitFlags<Prot>>,
     phantom: PhantomData<Box<[u8; MEM_SIZE]>>,
 }
 
@@ -56,12 +80,16 @@ impl Memory {
             return Err(MemError::Alloc(err));
         }
 
+        let rw = Prot::Read | Prot::Write;
+        let pages = vec![rw; MEM_SIZE / PAGE_SIZE];
+
         // SAFETY:
         // alloc is BitSize::MAX big (above)
         // we also already checked for a failed call
         // therefore this cast is valid
         let this = Self {
             data: ptr.cast::<[u8; MEM_SIZE]>(),
+            pages,
             phantom: PhantomData,
         };
 
@@ -94,30 +122,40 @@ impl Memory {
             return Err(MemError::Io(Arc::new(err)));
         }
 
+        let rw = Prot::Read | Prot::Write;
+        let pages = vec![rw; MEM_SIZE / PAGE_SIZE];
+
         // SAFETY:
         // alloc is BitSize::MAX big (above)
         // we also already checked for a failed call
         // therefore this cast is valid
         let this = Self {
             data: ptr.cast::<[u8; MEM_SIZE]>(),
+            pages,
+            phantom: PhantomData,
         };
 
         Ok(this)
     }
 
-    /// Write to an address. Fails if addr+val is out of bounds
+    /// Write to an address. Fails if addr+val is out of bounds or if page is not writeable
     pub fn write<N: Copy + ToBytes>(&mut self, addr: BitSize, val: N) -> Result<(), MemError> {
-        self.validate_addr(const { size_of::<N>() as BitSize }, addr)?;
+        self.validate_addr(
+            const { size_of::<N>() as BitSize },
+            addr,
+            Prot::Write.into(),
+        )?;
 
-        let buf = &mut self[addr..addr + const { size_of::<N>() as BitSize }];
+        let buf = &mut self.data_mut()
+            [addr as usize..(addr + const { size_of::<N>() as BitSize }) as usize];
         val.to_be_bytes(buf);
 
         Ok(())
     }
 
-    /// Reads an address. Fails if addr+N is out of bounds
+    /// Reads an address. Fails if addr+N is out of bounds or if page is not readable
     pub fn read<N: FromBytes>(&self, addr: BitSize) -> Result<N, MemError> {
-        self.validate_addr(const { size_of::<N>() as BitSize }, addr)?;
+        self.validate_addr(const { size_of::<N>() as BitSize }, addr, Prot::Read.into())?;
 
         let data = &self[addr..addr + const { size_of::<N>() as BitSize }];
         let n = N::from_be_bytes(data);
@@ -141,8 +179,13 @@ impl Memory {
         self.data_mut().get_mut((start, end))
     }
 
-    /// Validates addr is valid for size and also allocates if needed to make access possible
-    fn validate_addr(&self, size: BitSize, addr: BitSize) -> Result<(), MemError> {
+    /// Validates addr is valid for size and prot
+    fn validate_addr(
+        &self,
+        size: BitSize,
+        addr: BitSize,
+        prot: BitFlags<Prot>,
+    ) -> Result<(), MemError> {
         // reads of 0 are always valid regardless of address
         if size == 0 {
             return Ok(());
@@ -150,10 +193,46 @@ impl Memory {
 
         // check that size+addr is <= BitSize::MAX
         if addr.checked_add(size).is_none() {
-            Err(MemError::InvalidAddr(size, addr))
-        } else {
-            Ok(())
+            return Err(MemError::InvalidAddr(size, addr));
         }
+
+        self.check_prot(addr..addr, prot)?;
+
+        Ok(())
+    }
+
+    fn page_idx_of(addr: BitSize) -> usize {
+        (addr / PAGE_SIZE as u32) as usize
+    }
+
+    pub fn check_prot<R: IntoRange>(&self, addr: R, req: BitFlags<Prot>) -> Result<(), MemError> {
+        let (start, end) = addr.into_range();
+
+        for addr in (start..=end).step_by(PAGE_SIZE) {
+            let idx = Self::page_idx_of(addr);
+            let record = self.pages[idx];
+            if !record.contains(req) {
+                let i = !record & req;
+                return Err(MemError::PageFault(i));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn change_prot<R: IntoRange>(
+        &mut self,
+        addr: R,
+        req: BitFlags<Prot>,
+    ) -> Result<(), MemError> {
+        let (start, end) = addr.into_range();
+
+        for addr in (start..=end).step_by(PAGE_SIZE) {
+            let idx = Self::page_idx_of(addr);
+            self.pages[idx] = req;
+        }
+
+        Ok(())
     }
 
     /// Zeroes memory
@@ -455,3 +534,51 @@ macro_rules! impl_from_bytes {
 }
 
 impl_from_bytes! { u8 i8 u16 i16 u32 i32 u64 i64 u128 i128 usize isize f32 f64 }
+
+/// Allows both all types of range + single num as input
+pub trait IntoRange {
+    /// note: both sides are inclusive
+    fn into_range(self) -> (u32, u32);
+}
+
+impl IntoRange for u32 {
+    fn into_range(self) -> (u32, u32) {
+        (self, self)
+    }
+}
+
+impl IntoRange for Range<BitSize> {
+    fn into_range(self) -> (u32, u32) {
+        (self.start, self.end.saturating_sub(1))
+    }
+}
+
+impl IntoRange for RangeFrom<BitSize> {
+    fn into_range(self) -> (u32, u32) {
+        (self.start, BitSize::MAX)
+    }
+}
+
+impl IntoRange for RangeFull {
+    fn into_range(self) -> (u32, u32) {
+        (BitSize::MIN, BitSize::MAX)
+    }
+}
+
+impl IntoRange for RangeInclusive<BitSize> {
+    fn into_range(self) -> (u32, u32) {
+        (*self.start(), *self.end())
+    }
+}
+
+impl IntoRange for RangeTo<BitSize> {
+    fn into_range(self) -> (u32, u32) {
+        (BitSize::MIN, self.end.saturating_sub(1))
+    }
+}
+
+impl IntoRange for RangeToInclusive<BitSize> {
+    fn into_range(self) -> (u32, u32) {
+        (BitSize::MIN, self.end)
+    }
+}

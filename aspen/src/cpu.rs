@@ -12,13 +12,13 @@ use yansi::Paint;
 use crate::{
     BitSize,
     instruction::{Instruction, InstructionType},
-    memory::Memory,
+    memory::{MemError, Memory, Prot},
 };
 
 #[cfg(feature = "steady-clock")]
 use crate::emulator::FREQ;
 
-#[derive(Debug, Copy, Clone, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error, PartialEq)]
 pub enum CpuError {
     #[error("Unsupported instruction: {0:?}")]
     UnsupportedInst(Instruction),
@@ -26,11 +26,13 @@ pub enum CpuError {
     StackUnderflow(u32),
     #[error("Stack overflow: 0x{0:0>8x}")]
     StackOverflow(u32),
+    #[error("{0}")]
+    Mem(#[from] MemError),
     #[error("")]
     Overflow,
 }
 
-#[derive(Default, Copy, Clone)]
+#[derive(Debug)]
 pub struct Cpu {
     /// general purpose registers
     pub gp: Registers,
@@ -43,6 +45,16 @@ pub struct Cpu {
 }
 
 impl Cpu {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self {
+            gp: Default::default(),
+            gfx: 0,
+            pc: 0,
+            clk: 0,
+        }
+    }
+
     pub fn process(
         &mut self,
         inst: Instruction,
@@ -68,14 +80,15 @@ impl Cpu {
             };
         }
 
-        let mut add_cycles_from_micros = |val: u64| {
+        #[allow(unused_mut)]
+        let mut add_cycles_from_micros = |_val: u64| {
             #[cfg(feature = "steady-clock")]
-            if val > 0 {
+            if _val > 0 {
                 // add cycles consistent with frequency
                 let fre = const { FREQ.as_micros() as u64 };
                 // adjust the clock frequency scaled by our wait time
                 // waits in multiples of FREQ
-                *clk = val.max(fre).div_ceil(fre) as u32;
+                *clk = _val.max(fre).div_ceil(fre) as u32;
             }
         };
 
@@ -185,6 +198,8 @@ impl Cpu {
                     .checked_add(3)
                     .ok_or(CpuError::Overflow)?;
 
+                mem.check_prot(start..=end, Prot::Read.into())?;
+
                 let data = &mem[start..=end];
                 let val = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
                 self.gp.set_reg(inst.dst, val);
@@ -194,6 +209,8 @@ impl Cpu {
                 let start = get_imm_or!(inst.a);
                 let end = start.checked_add(2).ok_or(CpuError::Overflow)?;
 
+                mem.check_prot(start..=end, Prot::Read.into())?;
+
                 let data = &mem[start..=end];
                 let val = u32::from_le_bytes([data[0], data[1], 0, 0]);
                 self.gp.set_reg(inst.dst, val);
@@ -201,6 +218,8 @@ impl Cpu {
 
             Ldb => {
                 let start = get_imm_or!(inst.a);
+
+                mem.check_prot(start..=start, Prot::Read.into())?;
 
                 let val = u32::from_le_bytes([mem[start], 0, 0, 0]);
                 self.gp.set_reg(inst.dst, val);
@@ -222,6 +241,8 @@ impl Cpu {
                 let dst = self.gp.get_reg(inst.dst);
                 let end = dst.checked_add(3).ok_or(CpuError::Overflow)?;
 
+                mem.check_prot(dst..=end, Prot::Write.into())?;
+
                 let data = get_imm_or!(inst.a).to_le_bytes();
                 mem[dst..=end].copy_from_slice(&data);
             }
@@ -230,12 +251,15 @@ impl Cpu {
                 let dst = self.gp.get_reg(inst.dst);
                 let end = dst.checked_add(1).ok_or(CpuError::Overflow)?;
 
+                mem.check_prot(dst..=end, Prot::Write.into())?;
+
                 let data = get_imm_or!(inst.a).to_le_bytes();
                 mem[dst..=end].copy_from_slice(&[data[0], data[1]]);
             }
 
             Strb => {
                 let dst = self.gp.get_reg(inst.dst);
+                mem.check_prot(dst..=dst, Prot::Write.into())?;
                 mem[dst] = get_imm_or!(inst.a) as u8;
             }
 
@@ -651,11 +675,11 @@ impl Cpu {
     /// zero all registers
     #[allow(unused)]
     pub fn zeroize(&mut self) {
-        *self = Self::default();
+        *self = Self::new();
     }
 }
 
-#[derive(Copy, Clone, Debug, Display)]
+#[derive(Copy, Clone, Debug, Display, PartialEq)]
 #[strum(serialize_all = "lowercase")]
 pub enum Reg {
     Zr,
@@ -747,7 +771,7 @@ impl_reg!(u8 u32);
 /// \[r\] - caller saved
 /// \[e\] - callee saved
 #[repr(C)]
-#[derive(Copy, Clone, NoUninit, AnyBitPattern)]
+#[derive(Copy, Clone, NoUninit, AnyBitPattern, Debug)]
 pub struct Registers {
     /// zero register
     pub zr: BitSize,

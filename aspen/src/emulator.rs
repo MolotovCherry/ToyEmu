@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "steady-clock")]
 use std::time::{Duration, Instant};
 
 use log::{Level, trace};
@@ -9,13 +10,14 @@ use yansi::Paint as _;
 use crate::BitSize;
 use crate::cpu::{Cpu, CpuError};
 use crate::instruction::{InstError, Instruction};
-use crate::memory::{MemError, Memory};
+use crate::memory::{MemError, Memory, PAGE_SIZE, Prot};
+#[cfg(feature = "steady-clock")]
 use crate::sleep::u_sleep;
 
 #[cfg(feature = "steady-clock")]
 pub const FREQ: Duration = Duration::from_micros(5);
 
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error, PartialEq)]
 pub enum EmuError {
     #[error("{0}")]
     Mem(#[from] MemError),
@@ -25,6 +27,7 @@ pub enum EmuError {
     Cpu(#[from] CpuError),
 }
 
+#[derive(Debug)]
 pub struct Emulator {
     pub cpu: Cpu,
     pub mem: Memory,
@@ -33,17 +36,22 @@ pub struct Emulator {
 impl Emulator {
     pub fn new(program: &[u8]) -> Result<Self, EmuError> {
         let mut this = Self {
-            cpu: Cpu::default(),
+            cpu: Cpu::new(),
             mem: Memory::new()?,
         };
 
-        this.write_program(program);
+        this.write_program(program)?;
 
         Ok(this)
     }
 
-    pub fn write_program(&mut self, program: &[u8]) {
+    pub fn write_program(&mut self, program: &[u8]) -> Result<(), MemError> {
         self.mem[..program.len() as BitSize].copy_from_slice(program);
+        let size = program.len().next_multiple_of(PAGE_SIZE);
+        self.mem
+            .change_prot(..size as u32, Prot::Execute | Prot::Read)?;
+
+        Ok(())
     }
 
     pub fn run(&mut self) -> Result<(), EmuError> {
@@ -52,6 +60,17 @@ impl Emulator {
         loop {
             let mut clk = 1u32;
             let inst = self.next_inst()?;
+
+            self.mem.check_prot(self.cpu.pc, Prot::Execute.into())?;
+
+            if log::log_enabled!(Level::Trace) {
+                #[cold]
+                fn trace(pc: u32, i: &Instruction) {
+                    trace!(target: "aspen::cpu", "{}: {i}", format_args!("0x{pc:0>8x}").bright_green());
+                }
+
+                trace(self.cpu.pc, &inst);
+            }
 
             #[cfg(feature = "steady-clock")]
             let now = Instant::now();
@@ -82,15 +101,6 @@ impl Emulator {
     fn next_inst(&self) -> Result<Instruction, InstError> {
         let view = &self.mem[self.cpu.pc..];
         let i = Instruction::from_slice(view)?;
-
-        if log::log_enabled!(Level::Trace) {
-            #[cold]
-            fn trace(pc: u32, i: &Instruction) {
-                trace!(target: "aspen::cpu", "{}: {i}", format_args!("0x{pc:0>8x}").bright_green());
-            }
-
-            trace(self.cpu.pc, &i);
-        }
 
         Ok(i)
     }

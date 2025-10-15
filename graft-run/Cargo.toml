@@ -7,4 +7,6 @@ edition = "2024"
 proc-macro = true
 
 [dependencies]
+proc-macro2 = { version = "1.0.101", features = ["span-locations"] }
 quote = "1.0.41"
+syn = "2.0.106"

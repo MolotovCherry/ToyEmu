@@ -18,7 +18,7 @@ use yansi::Paint as _;
 
 use crate::{BitSize, cpu::Reg};
 
-#[derive(Debug, Copy, Clone, thiserror::Error)]
+#[derive(Debug, Copy, Clone, thiserror::Error, PartialEq)]
 pub enum InstError {
     #[error("Incorrect instruction size: {0}")]
     WrongSize(usize),
@@ -26,7 +26,7 @@ pub enum InstError {
     UnknownInstruction(u8, u8),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Instruction {
     pub ty: InstructionType,
     pub dst: Reg,
@@ -219,7 +219,7 @@ macro_rules! impl_inst {
             ($mode:expr, $opcode:expr) => $inst:ident $([$($op:ident),*])*
         )+
     ) => {
-        #[derive(Copy, Clone, Debug, Display)]
+        #[derive(Copy, Clone, Debug, Display, PartialEq)]
         #[strum(serialize_all = "lowercase")]
         pub enum InstructionType {
             $(
