@@ -1,9 +1,6 @@
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "steady-clock")]
-use std::time::{Duration, Instant};
-
 use log::{Level, trace};
 use yansi::Paint as _;
 
@@ -11,16 +8,13 @@ use crate::BitSize;
 use crate::cpu::{Cpu, CpuError};
 use crate::instruction::{InstError, Instruction};
 use crate::memory::{MemError, Memory, PAGE_SIZE, Prot};
-#[cfg(feature = "steady-clock")]
-use crate::sleep::u_sleep;
-
-#[cfg(feature = "steady-clock")]
-pub const FREQ: Duration = Duration::from_micros(5);
 
 #[derive(Debug, Clone, thiserror::Error, PartialEq)]
 pub enum EmuError {
     #[error("{0}")]
     Mem(#[from] MemError),
+    #[error("{0} @ 0x{1:08x}")]
+    PageFault(MemError, BitSize),
     #[error("{0}")]
     Inst(#[from] InstError),
     #[error("{0}")]
@@ -46,10 +40,12 @@ impl Emulator {
     }
 
     pub fn write_program(&mut self, program: &[u8]) -> Result<(), MemError> {
-        self.mem[..program.len() as BitSize].copy_from_slice(program);
-        let size = program.len().next_multiple_of(PAGE_SIZE);
-        self.mem
-            .change_prot(..size as u32, Prot::Execute | Prot::Read)?;
+        let mem = self.mem.get_mut().unwrap();
+
+        let len = program.len() as BitSize;
+        mem[..len].copy_from_slice(program);
+        let size = len.next_multiple_of(PAGE_SIZE as BitSize);
+        mem.change_prot(..size, Prot::Execute | Prot::Read)?;
 
         Ok(())
     }
@@ -61,7 +57,9 @@ impl Emulator {
             let mut clk = 1u32;
             let inst = self.next_inst()?;
 
-            self.mem.check_prot(self.cpu.pc, Prot::Execute.into())?;
+            if let Err(e) = self.mem.check_prot(self.cpu.pc, Prot::Execute.into()) {
+                return Err(EmuError::PageFault(e, self.cpu.pc));
+            }
 
             if log::log_enabled!(Level::Trace) {
                 #[cold]
@@ -72,24 +70,10 @@ impl Emulator {
                 trace(self.cpu.pc, &inst);
             }
 
-            #[cfg(feature = "steady-clock")]
-            let now = Instant::now();
-
             self.cpu.process(inst, &mut self.mem, &mut stop, &mut clk)?;
-
-            #[cfg(feature = "steady-clock")]
-            let elapsed = now.elapsed();
 
             #[rustfmt::skip]
             if stop { break; };
-
-            #[cfg(feature = "steady-clock")]
-            {
-                let wait = FREQ * clk;
-                if elapsed < wait {
-                    u_sleep(wait - elapsed);
-                }
-            }
 
             // clock cycles we've been powered on for
             self.cpu.clk += clk as u64;

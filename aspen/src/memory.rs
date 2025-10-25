@@ -2,9 +2,10 @@ use std::{
     ffi::c_void,
     marker::PhantomData,
     ops::{
-        Index, IndexMut, Range, RangeBounds, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+        Deref, Index, IndexMut, Range, RangeBounds, RangeFrom, RangeFull, RangeInclusive, RangeTo,
         RangeToInclusive,
     },
+    sync::Arc,
 };
 
 use enumflags2::{BitFlags, bitflags};
@@ -49,95 +50,15 @@ pub enum Prot {
 }
 
 #[derive(Debug)]
-pub struct Memory {
+pub struct MemoryInner {
     data: *mut [u8; MEM_SIZE],
     pages: Vec<BitFlags<Prot>>,
     phantom: PhantomData<Box<[u8; MEM_SIZE]>>,
 }
 
-unsafe impl Send for Memory {}
+unsafe impl Send for MemoryInner {}
 
-impl Memory {
-    #[cfg(windows)]
-    pub fn new() -> Result<Self, MemError> {
-        use windows::Win32::{
-            Foundation::GetLastError,
-            System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_READWRITE, VirtualAlloc},
-        };
-
-        #[rustfmt::skip]
-        let ptr = unsafe {
-            VirtualAlloc(
-                None,
-                MEM_SIZE,
-                MEM_COMMIT | MEM_RESERVE,
-                PAGE_READWRITE,
-            )
-        };
-
-        if ptr.is_null() {
-            let err = unsafe { GetLastError() };
-            return Err(MemError::Alloc(err));
-        }
-
-        let rw = Prot::Read | Prot::Write;
-        let pages = vec![rw; MEM_SIZE / PAGE_SIZE];
-
-        // SAFETY:
-        // alloc is BitSize::MAX big (above)
-        // we also already checked for a failed call
-        // therefore this cast is valid
-        let this = Self {
-            data: ptr.cast::<[u8; MEM_SIZE]>(),
-            pages,
-            phantom: PhantomData,
-        };
-
-        Ok(this)
-    }
-
-    #[cfg(unix)]
-    pub fn new() -> Result<Self, MemError> {
-        use core::ptr::addr_eq;
-        use core::{mem::transmute, ptr::null_mut};
-        use libc::{MAP_ANONYMOUS, MAP_FAILED, MAP_PRIVATE, PROT_READ, PROT_WRITE, mmap};
-        use std::os::fd::BorrowedFd;
-
-        const INVALID_FD: i32 = -1;
-
-        let ptr = unsafe {
-            mmap(
-                null_mut(),
-                MEM_SIZE,
-                PROT_READ | PROT_WRITE,
-                MAP_PRIVATE | MAP_ANONYMOUS,
-                INVALID_FD,
-                0,
-            )
-        };
-
-        if addr_eq(ptr, MAP_FAILED) {
-            let err = io::Error::last_os_error();
-
-            return Err(MemError::Io(Arc::new(err)));
-        }
-
-        let rw = Prot::Read | Prot::Write;
-        let pages = vec![rw; MEM_SIZE / PAGE_SIZE];
-
-        // SAFETY:
-        // alloc is BitSize::MAX big (above)
-        // we also already checked for a failed call
-        // therefore this cast is valid
-        let this = Self {
-            data: ptr.cast::<[u8; MEM_SIZE]>(),
-            pages,
-            phantom: PhantomData,
-        };
-
-        Ok(this)
-    }
-
+impl MemoryInner {
     /// Write to an address. Fails if addr+val is out of bounds or if page is not writeable
     pub fn write<N: Copy + ToBytes>(&mut self, addr: BitSize, val: N) -> Result<(), MemError> {
         self.validate_addr(
@@ -220,6 +141,8 @@ impl Memory {
         Ok(())
     }
 
+    /// Change memory protection for a page.
+    /// Note: All page(s) covering the range are changed
     pub fn change_prot<R: IntoRange>(
         &mut self,
         addr: R,
@@ -315,7 +238,7 @@ impl Memory {
     }
 }
 
-impl Drop for Memory {
+impl Drop for MemoryInner {
     #[cfg(windows)]
     fn drop(&mut self) {
         use windows::Win32::System::Memory::{MEM_RELEASE, VirtualFree};
@@ -341,7 +264,118 @@ impl Drop for Memory {
     }
 }
 
-impl Index<BitSize> for Memory {
+#[derive(Debug, Clone)]
+pub struct Memory {
+    inner: Arc<MemoryInner>,
+}
+
+unsafe impl Send for Memory {}
+unsafe impl Sync for Memory {}
+
+impl Deref for Memory {
+    type Target = Arc<MemoryInner>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl Memory {
+    #[cfg(windows)]
+    pub fn new() -> Result<Self, MemError> {
+        use windows::Win32::{
+            Foundation::GetLastError,
+            System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_READWRITE, VirtualAlloc},
+        };
+
+        #[rustfmt::skip]
+        let ptr = unsafe {
+            VirtualAlloc(
+                None,
+                MEM_SIZE,
+                MEM_COMMIT | MEM_RESERVE,
+                PAGE_READWRITE,
+            )
+        };
+
+        if ptr.is_null() {
+            let err = unsafe { GetLastError() };
+            return Err(MemError::Alloc(err));
+        }
+
+        let rw = Prot::Read | Prot::Write;
+        let pages = vec![rw; MEM_SIZE / PAGE_SIZE];
+
+        // SAFETY:
+        // alloc is BitSize::MAX big (above)
+        // we also already checked for a failed call
+        // therefore this cast is valid
+        let inner = MemoryInner {
+            data: ptr.cast::<[u8; MEM_SIZE]>(),
+            pages,
+            phantom: PhantomData,
+        };
+
+        #[expect(clippy::arc_with_non_send_sync)]
+        let this = Self {
+            inner: Arc::new(inner),
+        };
+
+        Ok(this)
+    }
+
+    #[cfg(unix)]
+    pub fn new() -> Result<Self, MemError> {
+        use core::ptr::addr_eq;
+        use core::{mem::transmute, ptr::null_mut};
+        use libc::{MAP_ANONYMOUS, MAP_FAILED, MAP_PRIVATE, PROT_READ, PROT_WRITE, mmap};
+        use std::os::fd::BorrowedFd;
+
+        const INVALID_FD: i32 = -1;
+
+        let ptr = unsafe {
+            mmap(
+                null_mut(),
+                MEM_SIZE,
+                PROT_READ | PROT_WRITE,
+                MAP_PRIVATE | MAP_ANONYMOUS,
+                INVALID_FD,
+                0,
+            )
+        };
+
+        if addr_eq(ptr, MAP_FAILED) {
+            let err = io::Error::last_os_error();
+
+            return Err(MemError::Io(Arc::new(err)));
+        }
+
+        let rw = Prot::Read | Prot::Write;
+        let pages = vec![rw; MEM_SIZE / PAGE_SIZE];
+
+        // SAFETY:
+        // alloc is BitSize::MAX big (above)
+        // we also already checked for a failed call
+        // therefore this cast is valid
+        let inner = MemoryInner {
+            data: ptr.cast::<[u8; MEM_SIZE]>(),
+            pages,
+            phantom: PhantomData,
+        };
+
+        let this = Self {
+            inner: Arc::new(inner),
+        };
+
+        Ok(this)
+    }
+
+    pub fn get_mut(&mut self) -> Option<&mut MemoryInner> {
+        Arc::get_mut(&mut self.inner)
+    }
+}
+
+impl Index<BitSize> for MemoryInner {
     type Output = u8;
 
     fn index(&self, index: BitSize) -> &Self::Output {
@@ -349,7 +383,7 @@ impl Index<BitSize> for Memory {
     }
 }
 
-impl Index<Range<BitSize>> for Memory {
+impl Index<Range<BitSize>> for MemoryInner {
     type Output = [u8];
 
     fn index(&self, index: Range<BitSize>) -> &Self::Output {
@@ -362,7 +396,7 @@ impl Index<Range<BitSize>> for Memory {
     }
 }
 
-impl Index<RangeFrom<BitSize>> for Memory {
+impl Index<RangeFrom<BitSize>> for MemoryInner {
     type Output = [u8];
 
     fn index(&self, index: RangeFrom<BitSize>) -> &Self::Output {
@@ -374,7 +408,7 @@ impl Index<RangeFrom<BitSize>> for Memory {
     }
 }
 
-impl Index<RangeFull> for Memory {
+impl Index<RangeFull> for MemoryInner {
     type Output = [u8];
 
     fn index(&self, _: RangeFull) -> &Self::Output {
@@ -382,7 +416,7 @@ impl Index<RangeFull> for Memory {
     }
 }
 
-impl Index<RangeInclusive<BitSize>> for Memory {
+impl Index<RangeInclusive<BitSize>> for MemoryInner {
     type Output = [u8];
 
     fn index(&self, index: RangeInclusive<BitSize>) -> &Self::Output {
@@ -392,7 +426,7 @@ impl Index<RangeInclusive<BitSize>> for Memory {
     }
 }
 
-impl Index<RangeTo<BitSize>> for Memory {
+impl Index<RangeTo<BitSize>> for MemoryInner {
     type Output = [u8];
 
     fn index(&self, index: RangeTo<BitSize>) -> &Self::Output {
@@ -404,7 +438,7 @@ impl Index<RangeTo<BitSize>> for Memory {
     }
 }
 
-impl Index<RangeToInclusive<BitSize>> for Memory {
+impl Index<RangeToInclusive<BitSize>> for MemoryInner {
     type Output = [u8];
 
     fn index(&self, index: RangeToInclusive<BitSize>) -> &Self::Output {
@@ -416,13 +450,13 @@ impl Index<RangeToInclusive<BitSize>> for Memory {
     }
 }
 
-impl IndexMut<BitSize> for Memory {
+impl IndexMut<BitSize> for MemoryInner {
     fn index_mut(&mut self, index: BitSize) -> &mut Self::Output {
         &mut self.data_mut()[index as usize]
     }
 }
 
-impl IndexMut<Range<BitSize>> for Memory {
+impl IndexMut<Range<BitSize>> for MemoryInner {
     fn index_mut(&mut self, index: Range<BitSize>) -> &mut Self::Output {
         let index = Range {
             start: index.start as _,
@@ -433,7 +467,7 @@ impl IndexMut<Range<BitSize>> for Memory {
     }
 }
 
-impl IndexMut<RangeFrom<BitSize>> for Memory {
+impl IndexMut<RangeFrom<BitSize>> for MemoryInner {
     fn index_mut(&mut self, index: RangeFrom<BitSize>) -> &mut Self::Output {
         let index = RangeFrom {
             start: index.start as _,
@@ -443,13 +477,13 @@ impl IndexMut<RangeFrom<BitSize>> for Memory {
     }
 }
 
-impl IndexMut<RangeFull> for Memory {
+impl IndexMut<RangeFull> for MemoryInner {
     fn index_mut(&mut self, _: RangeFull) -> &mut Self::Output {
         self.data_mut()
     }
 }
 
-impl IndexMut<RangeInclusive<BitSize>> for Memory {
+impl IndexMut<RangeInclusive<BitSize>> for MemoryInner {
     fn index_mut(&mut self, index: RangeInclusive<BitSize>) -> &mut Self::Output {
         let index = RangeInclusive::new(*index.start() as usize, *index.end() as usize);
 
@@ -457,7 +491,7 @@ impl IndexMut<RangeInclusive<BitSize>> for Memory {
     }
 }
 
-impl IndexMut<RangeTo<BitSize>> for Memory {
+impl IndexMut<RangeTo<BitSize>> for MemoryInner {
     fn index_mut(&mut self, index: RangeTo<BitSize>) -> &mut Self::Output {
         let index = RangeTo {
             end: index.end as _,
@@ -467,7 +501,7 @@ impl IndexMut<RangeTo<BitSize>> for Memory {
     }
 }
 
-impl IndexMut<RangeToInclusive<BitSize>> for Memory {
+impl IndexMut<RangeToInclusive<BitSize>> for MemoryInner {
     fn index_mut(&mut self, index: RangeToInclusive<BitSize>) -> &mut Self::Output {
         let index = RangeToInclusive {
             end: index.end as _,

@@ -1,12 +1,13 @@
-use graft_run::run;
 use std::ptr;
 use std::time::Instant;
+
 use aspen::emulator::Emulator;
+use kizuna::macros::stringify_raw;
 
 fn main() {
     let mut emu = Emulator::new(&[]).expect("creation to succeed");
 
-    let mut try_run = |asm| {
+    let mut run = |asm| {
         let asm = format!("{asm}\n\n; auto inserted\nhlt");
 
         let data = match graft::assemble("<input>.asm", &asm) {
@@ -14,14 +15,16 @@ fn main() {
             Err(e) => panic!("{e}"),
         };
 
-        emu.mem.zeroize().expect("zeroize to succeed");
+        let mem = emu.mem.get_mut().unwrap();
+        mem.zeroize().expect("zeroize to succeed");
 
         // prefault the pages to test the emulator's performance,
         // not the os's lazy alloc overhead
         //
         // TODO: for linux, use MAP_POPULATE
-        for b in emu
-            .mem.data_mut().iter_mut()
+        for b in mem
+            .data_mut()
+            .iter_mut()
             .step_by(4096 /* min page size on modern oses */)
         {
             unsafe {
@@ -49,7 +52,7 @@ fn main() {
         Ok::<(), ()>(())
     };
 
-    run! {
+    let code = stringify_raw! {
         #addr 200
         helloworld:
             #d "Hello, world!\n"
@@ -85,4 +88,6 @@ fn main() {
         exit:
             hlt
     };
+
+    run(code).unwrap();
 }

@@ -5,7 +5,6 @@ use std::{
 
 use aho_corasick::AhoCorasick;
 use enumflags2::BitFlag;
-use graft_run::{run, try_run_with};
 use serial_test::serial;
 
 pub use super::*;
@@ -31,19 +30,21 @@ impl Drop for EmuGuard<'_> {
     fn drop(&mut self) {
         self.cpu.zeroize();
         // mem dirty flag
+        let dirty = self.1;
         // skip mem resetting if there's nothing to reset, to save on processing
-        if self.1 {
-            self.mem.zeroize().expect("zeroize to succeed");
+        let mem = self.mem.get_mut().unwrap();
+        if dirty {
+            mem.zeroize().expect("zeroize to succeed");
         }
-        self.mem.change_prot(.., Prot::Read | Prot::Write).unwrap();
+        mem.change_prot(.., Prot::Read | Prot::Write).unwrap();
     }
 }
 
-fn try_run(asm: &str) -> Result<EmuGuard<'_>, EmuError> {
-    try_run_with(|_| (), asm)
+fn _try_run(asm: &str) -> Result<EmuGuard<'_>, EmuError> {
+    _try_run_with(|_| (), asm)
 }
 
-fn try_run_with(f: impl FnOnce(&mut Emulator), asm: &str) -> Result<EmuGuard<'_>, EmuError> {
+fn _try_run_with(f: impl FnOnce(&mut Emulator), asm: &str) -> Result<EmuGuard<'_>, EmuError> {
     static LOCK: LazyLock<Mutex<Emulator>> =
         LazyLock::new(|| Mutex::new(Emulator::new(&[]).unwrap()));
 
@@ -72,13 +73,41 @@ fn try_run_with(f: impl FnOnce(&mut Emulator), asm: &str) -> Result<EmuGuard<'_>
     Ok(guard)
 }
 
+macro_rules! try_run_with {
+    (|$d:ident| {
+        $($ccode:tt)*
+    },
+    $($code:tt)*) => {
+        _try_run_with(|$d| { $($ccode)* }, ::kizuna::macros::stringify_raw!($($code)*))
+    };
+
+    (
+        $d:ident,
+        $($code:tt)*
+    ) => {
+        _try_run_with($d, ::kizuna::macros::stringify_raw!($($code)*))
+    };
+}
+
+#[expect(unused)]
+macro_rules! try_run {
+    ($($code:tt)*) => {
+        _try_run(::kizuna::macros::stringify_raw!($($code)*))
+    };
+}
+
+macro_rules! run {
+    ($($code:tt)*) => {
+        _try_run(::kizuna::macros::stringify_raw!($($code)*)).unwrap()
+    };
+}
+
 #[test]
 #[serial]
 fn test_prot() {
     let handle = |emu: &mut Emulator| {
-        emu.mem
-            .change_prot(0..100, Prot::Read | Prot::Write)
-            .unwrap();
+        let mem = emu.mem.get_mut().unwrap();
+        mem.change_prot(0..100, Prot::Read | Prot::Write).unwrap();
     };
 
     let res = try_run_with! {
@@ -96,7 +125,8 @@ fn test_prot() {
     // --
 
     let handle = |emu: &mut Emulator| {
-        emu.mem.change_prot(0x12345678, Prot::empty()).unwrap();
+        let mem = emu.mem.get_mut().unwrap();
+        mem.change_prot(0x12345678, Prot::empty()).unwrap();
     };
 
     let res = try_run_with! {
@@ -209,7 +239,7 @@ fn test_rdclk() {
         rdclk t0, t1 ; 6!
     };
 
-    let val = ((emu.cpu.gp.t1 as u64) << 32) | (emu.cpu.gp.t0 as u64);
+    let val = (emu.cpu.gp.t1 as u64) << 32 | emu.cpu.gp.t0 as u64;
 
     assert_eq!(val, 6);
 }

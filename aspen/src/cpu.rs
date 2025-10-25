@@ -1,6 +1,8 @@
+mod monitor;
+
 use std::{
     slice,
-    time::{Instant, SystemTime},
+    time::{Duration, SystemTime},
 };
 
 use bstr::ByteSlice;
@@ -10,13 +12,12 @@ use strum::Display;
 use yansi::Paint;
 
 use crate::{
-    BitSize,
+    cpu::monitor::{Monitor, MonitorArgs},
     instruction::{Instruction, InstructionType},
     memory::{MemError, Memory, Prot},
+    sleep::u_sleep,
+    BitSize,
 };
-
-#[cfg(feature = "steady-clock")]
-use crate::emulator::FREQ;
 
 #[derive(Debug, Clone, thiserror::Error, PartialEq)]
 pub enum CpuError {
@@ -42,6 +43,8 @@ pub struct Cpu {
     pub pc: BitSize,
     /// clock counter
     pub clk: u64,
+    // other stuff
+    pub mon: Option<Monitor>,
 }
 
 impl Cpu {
@@ -52,6 +55,7 @@ impl Cpu {
             gfx: 0,
             pc: 0,
             clk: 0,
+            mon: None,
         }
     }
 
@@ -80,18 +84,6 @@ impl Cpu {
             };
         }
 
-        #[allow(unused_mut)]
-        let mut add_cycles_from_micros = |_val: u64| {
-            #[cfg(feature = "steady-clock")]
-            if _val > 0 {
-                // add cycles consistent with frequency
-                let fre = const { FREQ.as_micros() as u64 };
-                // adjust the clock frequency scaled by our wait time
-                // waits in multiples of FREQ
-                *clk = _val.max(fre).div_ceil(fre) as u32;
-            }
-        };
-
         match inst.ty {
             Nop => (),
 
@@ -106,10 +98,8 @@ impl Cpu {
 
                 if let Some(view) = mem.view(low..high) {
                     let data = view.as_bstr();
-                    let t = Instant::now();
                     print!("{data}");
-                    let e = t.elapsed();
-                    add_cycles_from_micros(e.as_micros() as _);
+                    *clk += 100;
                 }
             }
 
@@ -119,10 +109,8 @@ impl Cpu {
 
                 if let Some(view) = mem.view(low..high) {
                     let data = view.as_bstr();
-                    let t = Instant::now();
                     eprint!("{data}");
-                    let e = t.elapsed();
-                    add_cycles_from_micros(e.as_micros() as _);
+                    *clk += 100;
                 }
             }
 
@@ -152,11 +140,28 @@ impl Cpu {
             }
 
             Setgfx => {
-                self.gfx = get_imm_or!(inst.a);
+                let base = get_imm_or!(inst.a);
+
+                if base == 0 {
+                    if let Some(mon) = self.mon.as_mut() {
+                        mon.stop();
+                    }
+                } else {
+                    let args =
+                        MonitorArgs::from(&mem[base..base + size_of::<MonitorArgs>() as BitSize]);
+
+                    let buf_base = base + size_of::<MonitorArgs>() as BitSize;
+                    match self.mon.as_mut() {
+                        None => self.mon = Some(Monitor::new(args, buf_base).unwrap()),
+                        Some(mon) => mon.update(buf_base, args),
+                    }
+                }
             }
 
             Draw => {
-                unimplemented!();
+                let mon = self.mon.as_mut().unwrap();
+                let mem = mem.clone();
+                mon.draw(mem);
             }
 
             Slp => {
@@ -167,7 +172,9 @@ impl Cpu {
                     (val as u64) << 32 | (val2 as u64)
                 };
 
-                add_cycles_from_micros(val);
+                if val > 0 {
+                    u_sleep(Duration::from_micros(val));
+                }
             }
 
             Rdclk => {
@@ -243,8 +250,13 @@ impl Cpu {
 
                 mem.check_prot(dst..=end, Prot::Write.into())?;
 
-                let data = get_imm_or!(inst.a).to_le_bytes();
-                mem[dst..=end].copy_from_slice(&data);
+                loop {
+                    let Some(mem) = mem.get_mut() else { continue };
+
+                    let data = get_imm_or!(inst.a).to_le_bytes();
+                    mem[dst..=end].copy_from_slice(&data);
+                    break;
+                }
             }
 
             Strw => {
@@ -253,6 +265,8 @@ impl Cpu {
 
                 mem.check_prot(dst..=end, Prot::Write.into())?;
 
+                let mem = mem.get_mut().unwrap();
+
                 let data = get_imm_or!(inst.a).to_le_bytes();
                 mem[dst..=end].copy_from_slice(&[data[0], data[1]]);
             }
@@ -260,6 +274,7 @@ impl Cpu {
             Strb => {
                 let dst = self.gp.get_reg(inst.dst);
                 mem.check_prot(dst..=dst, Prot::Write.into())?;
+                let mem = mem.get_mut().unwrap();
                 mem[dst] = get_imm_or!(inst.a) as u8;
             }
 
@@ -393,12 +408,12 @@ impl Cpu {
             }
 
             Inc => {
-                let a = self.gp.get_reg(inst.a).wrapping_add(1);
+                let a = self.gp.get_reg(inst.dst).wrapping_add(1);
                 self.gp.set_reg(inst.dst, a);
             }
 
             Dec => {
-                let a = self.gp.get_reg(inst.a).wrapping_sub(1);
+                let a = self.gp.get_reg(inst.dst).wrapping_sub(1);
                 self.gp.set_reg(inst.dst, a);
             }
 
@@ -593,6 +608,7 @@ impl Cpu {
 
                 self.gp.sp = self.gp.sp.checked_sub(3).ok_or(CpuError::StackOverflow(self.pc))?;
 
+                let mem = mem.get_mut().unwrap();
                 let slice = &mut mem[self.gp.sp..=old_sp];
 
                 slice.copy_from_slice(&a.to_le_bytes());
@@ -626,6 +642,7 @@ impl Cpu {
                     .checked_sub(3)
                     .ok_or(CpuError::StackOverflow(self.pc))?;
 
+                let mem = mem.get_mut().unwrap();
                 mem[self.gp.sp..=old_sp].copy_from_slice(&self.gp.ra.to_le_bytes());
 
                 let jmp = get_imm_or!(inst.a);

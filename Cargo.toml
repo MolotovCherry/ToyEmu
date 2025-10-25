@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["graft", "aspen", "graft-run", "bmark"]
+members = ["graft", "aspen", "bmark"]
 
 [profile.release]
 lto = true
