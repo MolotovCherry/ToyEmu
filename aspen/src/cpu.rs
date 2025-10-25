@@ -12,11 +12,10 @@ use strum::Display;
 use yansi::Paint;
 
 use crate::{
+    BitSize,
     cpu::monitor::{Monitor, MonitorArgs},
     instruction::{Instruction, InstructionType},
     memory::{MemError, Memory, Prot},
-    sleep::u_sleep,
-    BitSize,
 };
 
 #[derive(Debug, Clone, thiserror::Error, PartialEq)]
@@ -173,7 +172,7 @@ impl Cpu {
                 };
 
                 if val > 0 {
-                    u_sleep(Duration::from_micros(val));
+                    kizuna::time::u_sleep(Duration::from_micros(val));
                 }
             }
 
