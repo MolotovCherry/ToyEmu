@@ -1,12 +1,13 @@
 use std::{
     ops::{Deref, DerefMut},
-    sync::{LazyLock, Mutex, MutexGuard},
+    sync::{LazyLock, MutexGuard},
 };
 
 use aho_corasick::AhoCorasick;
+use sayuri::sync::Mutex;
 
 use super::{EmuError, Emulator};
-use crate::memory::Prot;
+use crate::mmu::Prot;
 
 #[derive(Debug)]
 pub struct EmuGuard<'a>(MutexGuard<'a, Emulator>, bool);
@@ -31,7 +32,7 @@ impl Drop for EmuGuard<'_> {
         // mem dirty flag
         let dirty = self.1;
         // skip mem resetting if there's nothing to reset, to save on processing
-        let mem = self.mem.get_mut().unwrap();
+        let mem = self.mmu.get_mut().unwrap();
         if dirty {
             mem.zeroize().expect("zeroize to succeed");
         }
@@ -49,14 +50,12 @@ pub fn _try_run_with(f: impl FnOnce(&mut Emulator), asm: &str) -> Result<EmuGuar
     static LOCK: LazyLock<Mutex<Emulator>> =
         LazyLock::new(|| Mutex::new(Emulator::new(&[]).unwrap()));
 
-    LOCK.clear_poison();
-
     let patterns = &["str", "str.w", "str.b"];
     let ac = AhoCorasick::new(patterns).unwrap();
     let dirty = ac.find(asm).is_some();
 
     // important. this will keep it synchronous
-    let mut guard = EmuGuard(LOCK.lock().unwrap(), dirty);
+    let mut guard = EmuGuard(LOCK.lock(), dirty);
 
     let asm = format!("{asm}\n\n; auto inserted\nhlt");
 
@@ -87,7 +86,7 @@ pub mod macros {
             $d:ident,
             $($code:tt)*
         ) => {
-            $crate::emulator::tests::emu::_try_run_with($d, ::kizuna::macros::stringify_raw!($($code)*))
+            $crate::emulator::tests::emu::_try_run_with($d, ::sayuri::macros::stringify_raw!($($code)*))
         };
     }
 
@@ -100,7 +99,7 @@ pub mod macros {
 
     macro_rules! run {
         ($($code:tt)*) => {
-            $crate::emulator::tests::emu::_try_run(::kizuna::macros::stringify_raw!($($code)*)).unwrap()
+            $crate::emulator::tests::emu::_try_run(::sayuri::macros::stringify_raw!($($code)*)).unwrap()
         };
     }
 

@@ -71,10 +71,10 @@ dependencies = [
  "enumflags2",
  "env_logger",
  "graft",
- "kizuna",
  "libc",
  "log",
  "minifb",
+ "sayuri",
  "serial_test",
  "strum",
  "thiserror",
@@ -775,6 +775,23 @@ name = "ryu"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
+
+[[package]]
+name = "sayuri"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52399fe873421499e4a48314eadd34db17c16575936dd84459e1c71071e45a84"
+dependencies = [
+ "libc",
+ "sayuri-proc",
+ "windows",
+]
+
+[[package]]
+name = "sayuri-proc"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf164aded24a71ce39864eecb586185fae44e14e7a84a552f485d572dd6812e9"
 
 [[package]]
 name = "scc"

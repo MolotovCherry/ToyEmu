@@ -1,13 +1,15 @@
 #[cfg(test)]
 mod tests;
 
+use std::sync::Arc;
+
 use log::{Level, trace};
 use yansi::Paint as _;
 
 use crate::BitSize;
 use crate::cpu::{Cpu, CpuError};
 use crate::instruction::{InstError, Instruction};
-use crate::memory::{MemError, Memory, PAGE_SIZE, Prot};
+use crate::mmu::{MemError, Mmu, Prot};
 
 #[derive(Debug, Clone, thiserror::Error, PartialEq)]
 pub enum EmuError {
@@ -24,14 +26,14 @@ pub enum EmuError {
 #[derive(Debug)]
 pub struct Emulator {
     pub cpu: Cpu,
-    pub mem: Memory,
+    pub mmu: Arc<Mmu>,
 }
 
 impl Emulator {
     pub fn new(program: &[u8]) -> Result<Self, EmuError> {
         let mut this = Self {
             cpu: Cpu::new(),
-            mem: Memory::new()?,
+            mmu: Arc::new(Mmu::new()?),
         };
 
         this.write_program(program)?;
@@ -40,7 +42,7 @@ impl Emulator {
     }
 
     pub fn write_program(&mut self, program: &[u8]) -> Result<(), MemError> {
-        let mem = self.mem.get_mut().unwrap();
+        let mem = self.mmu.get_mut().unwrap();
 
         let len = program.len() as BitSize;
         mem[..len].copy_from_slice(program);
@@ -57,7 +59,7 @@ impl Emulator {
             let mut clk = 1u32;
             let inst = self.next_inst()?;
 
-            if let Err(e) = self.mem.check_prot(self.cpu.pc, Prot::Execute.into()) {
+            if let Err(e) = self.mmu.check_prot(self.cpu.pc, Prot::Execute.into()) {
                 return Err(EmuError::PageFault(e, self.cpu.pc));
             }
 
@@ -70,7 +72,7 @@ impl Emulator {
                 trace(self.cpu.pc, &inst);
             }
 
-            self.cpu.process(inst, &mut self.mem, &mut stop, &mut clk)?;
+            self.cpu.process(inst, &mut self.mmu, &mut stop, &mut clk)?;
 
             #[rustfmt::skip]
             if stop { break; };
@@ -83,7 +85,7 @@ impl Emulator {
     }
 
     fn next_inst(&self) -> Result<Instruction, InstError> {
-        let view = &self.mem[self.cpu.pc..];
+        let view = &self.mmu[self.cpu.pc..];
         let i = Instruction::from_slice(view)?;
 
         Ok(i)

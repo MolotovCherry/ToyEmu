@@ -15,7 +15,7 @@ use crate::{
     BitSize,
     cpu::monitor::{Monitor, MonitorArgs},
     instruction::{Instruction, InstructionType},
-    memory::{MemError, Memory, Prot},
+    mmu::{MemError, Memory, Prot},
 };
 
 #[derive(Debug, Clone, thiserror::Error, PartialEq)]

@@ -10,7 +10,7 @@ use emu::macros::*;
 #[serial]
 fn test_prot() {
     let handle = |emu: &mut Emulator| {
-        let mem = emu.mem.get_mut().unwrap();
+        let mem = emu.mmu.get_mut().unwrap();
         mem.change_prot(0..100, Prot::Read | Prot::Write).unwrap();
     };
 
@@ -29,7 +29,7 @@ fn test_prot() {
     // --
 
     let handle = |emu: &mut Emulator| {
-        let mem = emu.mem.get_mut().unwrap();
+        let mem = emu.mmu.get_mut().unwrap();
         mem.change_prot(0x12345678, Prot::empty()).unwrap();
     };
 
@@ -225,12 +225,12 @@ fn test_str() {
     };
 
     let a = 0x12345678;
-    let data: [u8; 4] = emu.mem[a..a + 4].try_into().unwrap();
+    let data: [u8; 4] = emu.mmu[a..a + 4].try_into().unwrap();
     let val = u32::from_le_bytes(data);
     assert_eq!(val, a);
 
     let b = 0x11223344;
-    let data: [u8; 4] = emu.mem[b..b + 4].try_into().unwrap();
+    let data: [u8; 4] = emu.mmu[b..b + 4].try_into().unwrap();
     let val = u32::from_le_bytes(data);
     assert_eq!(val, b);
 }
@@ -248,12 +248,12 @@ fn test_strw() {
     };
 
     let a = 0x00001234;
-    let data: [u8; 2] = emu.mem[a..a + 2].try_into().unwrap();
+    let data: [u8; 2] = emu.mmu[a..a + 2].try_into().unwrap();
     let val = u16::from_le_bytes(data);
     assert_eq!(val as u32, a);
 
     let b = 0x00001122;
-    let data: [u8; 2] = emu.mem[b..b + 2].try_into().unwrap();
+    let data: [u8; 2] = emu.mmu[b..b + 2].try_into().unwrap();
     let val = u16::from_le_bytes(data);
     assert_eq!(val as u32, b);
 }
@@ -270,6 +270,6 @@ fn test_strb() {
         str.b [t0], t1
     };
 
-    assert_eq!(emu.mem[0x1000], 0x12);
-    assert_eq!(emu.mem[0xFFFFFFFF], 0x13);
+    assert_eq!(emu.mmu[0x1000], 0x12);
+    assert_eq!(emu.mmu[0xFFFFFFFF], 0x13);
 }

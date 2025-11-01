@@ -5,7 +5,7 @@ use std::{
 
 use minifb::{Scale, ScaleMode, Window, WindowOptions};
 
-use crate::{BitSize, memory::Memory};
+use crate::{BitSize, mmu::Memory};
 
 enum ReqCommand {
     /// Request redraw
