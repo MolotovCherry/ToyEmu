@@ -13,7 +13,7 @@ use yansi::Paint;
 
 use crate::{
     BitSize,
-    cpu::monitor::Monitor,
+    cpu::monitor::{Monitor, MonitorArgs},
     instruction::{Instruction, InstructionType},
     mmu::{MemError, Mmu},
 };
@@ -141,21 +141,28 @@ impl Cpu {
             }
 
             Setgfx => {
-                let base = get_imm_or!(inst.a);
+                let width = self.gp.t0;
+                let height = self.gp.t1;
+                let fps = self.gp.t2;
 
-                if base == 0 {
-                    if let Some(mon) = self.mon.as_mut() {
-                        mon.stop();
-                    }
-                } else {
-                    match self.mon.as_mut() {
-                        None => {
-                            self.mon = Some(
-                                Monitor::new(base, mmu.clone())
-                                    .map_err(|e| CpuError::MiniFb(e.to_string()))?,
-                            )
+                let args = MonitorArgs {
+                    width: width as _,
+                    height: height as _,
+                    fps: fps as _,
+                };
+
+                match self.mon.as_mut() {
+                    Some(mon) => {
+                        if width == 0 || height == 0 {
+                            mon.stop();
                         }
-                        Some(mon) => mon.update(base),
+                    }
+
+                    None => {
+                        self.mon = Some(
+                            Monitor::new(0x80000000, mmu.clone(), args)
+                                .map_err(|e| CpuError::MiniFb(e.to_string()))?,
+                        )
                     }
                 }
             }

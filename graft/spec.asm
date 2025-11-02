@@ -124,8 +124,7 @@
 
     kbrd {d: register} => (0`2 @ 0b0 @ d`5) @ 0x06 @ 0x00 @ 0x00
 
-    setgfx {a: register} => (0`2 @ 0b0 @ 0`5) @ 0x07 @ a @ 0x00
-    setgfx {i: immediate} => (0`2 @ 0b1 @ 0`5) @ 0x07 @ 0x00 @ 0x00 @ i
+    gfx => (0`2 @ 0b0 @ 0`5) @ 0x07 @ 0x00 @ 0x00
     draw => (0`2 @ 0b0 @ 0`5) @ 0x08 @ 0x00 @ 0x00
 
     ; how much time to sleep in microseconds
