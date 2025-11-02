@@ -10,8 +10,7 @@ use emu::macros::*;
 #[serial]
 fn test_prot() {
     let handle = |emu: &mut Emulator| {
-        let mem = emu.mmu.get_mut().unwrap();
-        mem.change_prot(0..100, Prot::Read | Prot::Write).unwrap();
+        emu.mmu.set_prot(0..100, Prot::Read | Prot::Write);
     };
 
     let res = try_run_with! {
@@ -23,14 +22,16 @@ fn test_prot() {
 
     // test execution can't execute
     let res = res.map(|_| ());
-    let e = Err(EmuError::Mem(MemError::PageFault(Prot::Execute.into())));
+    let e = Err(EmuError::PageFault(
+        MemError::PageFault(Prot::Execute.into()),
+        0,
+    ));
     assert_eq!(e, res);
 
     // --
 
     let handle = |emu: &mut Emulator| {
-        let mem = emu.mmu.get_mut().unwrap();
-        mem.change_prot(0x12345678, Prot::empty()).unwrap();
+        emu.mmu.set_prot(0x12345678, Prot::empty());
     };
 
     let res = try_run_with! {
@@ -225,13 +226,11 @@ fn test_str() {
     };
 
     let a = 0x12345678;
-    let data: [u8; 4] = emu.mmu[a..a + 4].try_into().unwrap();
-    let val = u32::from_le_bytes(data);
+    let val = emu.mmu.read_unchecked::<u32>(a).unwrap();
     assert_eq!(val, a);
 
     let b = 0x11223344;
-    let data: [u8; 4] = emu.mmu[b..b + 4].try_into().unwrap();
-    let val = u32::from_le_bytes(data);
+    let val = emu.mmu.read_unchecked::<u32>(b).unwrap();
     assert_eq!(val, b);
 }
 
@@ -248,13 +247,11 @@ fn test_strw() {
     };
 
     let a = 0x00001234;
-    let data: [u8; 2] = emu.mmu[a..a + 2].try_into().unwrap();
-    let val = u16::from_le_bytes(data);
+    let val = emu.mmu.read_unchecked::<u16>(a).unwrap();
     assert_eq!(val as u32, a);
 
     let b = 0x00001122;
-    let data: [u8; 2] = emu.mmu[b..b + 2].try_into().unwrap();
-    let val = u16::from_le_bytes(data);
+    let val = emu.mmu.read_unchecked::<u16>(b).unwrap();
     assert_eq!(val as u32, b);
 }
 
@@ -270,6 +267,9 @@ fn test_strb() {
         str.b [t0], t1
     };
 
-    assert_eq!(emu.mmu[0x1000], 0x12);
-    assert_eq!(emu.mmu[0xFFFFFFFF], 0x13);
+    let a = emu.mmu.read_unchecked::<u8>(0x1000).unwrap();
+    let b = emu.mmu.read_unchecked::<u8>(0xFFFFFFFF).unwrap();
+
+    assert_eq!(a, 0x12);
+    assert_eq!(b, 0x13);
 }

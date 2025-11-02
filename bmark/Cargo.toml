@@ -6,4 +6,4 @@ edition = "2024"
 [dependencies]
 aspen = { path = "../aspen" }
 graft = { path = "../graft" }
-kizuna = { git = "https://github.com/MolotovCherry/kizuna" }
+sayuri = "0.1.2"

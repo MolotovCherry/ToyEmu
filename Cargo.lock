@@ -106,7 +106,7 @@ version = "0.1.0"
 dependencies = [
  "aspen",
  "graft",
- "kizuna",
+ "sayuri",
 ]
 
 [[package]]
@@ -449,21 +449,6 @@ dependencies = [
  "once_cell",
  "wasm-bindgen",
 ]
-
-[[package]]
-name = "kizuna"
-version = "0.1.0"
-source = "git+https://github.com/MolotovCherry/kizuna#c5a12a057f539a7c5539e627ad695e590585ad92"
-dependencies = [
- "kizuna-proc",
- "libc",
- "windows",
-]
-
-[[package]]
-name = "kizuna-proc"
-version = "0.1.0"
-source = "git+https://github.com/MolotovCherry/kizuna#c5a12a057f539a7c5539e627ad695e590585ad92"
 
 [[package]]
 name = "lazy_static"

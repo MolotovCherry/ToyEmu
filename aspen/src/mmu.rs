@@ -16,8 +16,8 @@ use memory::Memory;
 
 pub type Protection = BitFlags<Prot>;
 
-const MEM_SIZE: usize = BitSize::MAX as usize + 1;
-const PAGE_SIZE: usize = {
+pub const MEM_SIZE: usize = BitSize::MAX as usize + 1;
+pub const PAGE_SIZE: usize = {
     let size = 4096;
     assert!(MEM_SIZE.is_multiple_of(size));
     size
@@ -31,6 +31,8 @@ macro_rules! page_idx {
 pub enum MemError {
     #[error("Page fault: {0} access denied")]
     PageFault(Protection),
+    #[error("Overflow occurred")]
+    Overflow,
     #[cfg(windows)]
     #[error("Winapi Error: {0}")]
     WinApi(#[from] windows::core::Error),
@@ -131,29 +133,57 @@ impl Mmu {
         Ok(())
     }
 
-    pub fn view(&self, addr: impl Into<AddressRange>) -> Result<&[u8], MemError> {
-        let addr = addr.into();
-        self.check_prot(addr, Prot::Read)?;
-
-        todo!()
+    /// Access raw mem
+    ///
+    /// # Safety
+    /// No read or writes of any kind are allowed while this slice is alive
+    #[allow(clippy::mut_from_ref)]
+    pub unsafe fn mem(&self) -> &[u8; MEM_SIZE] {
+        unsafe { self.mem.mem() }
     }
 
-    pub fn view_mut(&self, addr: impl Into<AddressRange>) -> Result<&[u8], MemError> {
-        let addr = addr.into();
-        self.check_prot(addr, Prot::Write)?;
-
-        todo!()
+    /// Access raw mutable mem
+    ///
+    /// # Safety
+    /// No read or writes of any kind are allowed while this slice is alive
+    #[allow(clippy::mut_from_ref)]
+    pub unsafe fn mem_mut(&self) -> &mut [u8; MEM_SIZE] {
+        unsafe { self.mem.mem_mut() }
     }
 
-    pub fn read<N: FromBytes>(&self, addr: BitSize) -> Result<N, MemError> {
-        self.check_prot(addr, Prot::Read)?;
-        let n = self.mem.read(addr);
+    /// Copy mem to buffer starting at addr
+    pub fn memcpy(&self, addr: BitSize, buf: &mut [u8]) -> Result<(), MemError> {
+        self.mem.memcpy(addr, buf)
+    }
+
+    /// Write buffer to memory starting at addr
+    pub fn memwrite(&self, addr: BitSize, buf: &[u8]) -> Result<(), MemError> {
+        self.mem.memwrite(addr, buf)
+    }
+
+    /// Read, but don't check protection
+    pub fn read_unchecked<N: FromBytes>(&self, addr: BitSize) -> Result<N, MemError> {
+        let n = self.mem.read(addr)?;
         Ok(n)
     }
 
+    // Write, but don't check protection
+    pub fn write_unchecked<N: Copy + ToBytes>(&self, addr: BitSize, n: N) -> Result<(), MemError> {
+        self.mem.write(addr, n)?;
+        Ok(())
+    }
+
+    // Read with protection check
+    pub fn read<N: FromBytes>(&self, addr: BitSize) -> Result<N, MemError> {
+        self.check_prot(addr, Prot::Read)?;
+        let n = self.mem.read(addr)?;
+        Ok(n)
+    }
+
+    /// Write with protection check
     pub fn write<N: Copy + ToBytes>(&self, addr: BitSize, n: N) -> Result<(), MemError> {
         self.check_prot(addr, Prot::Write)?;
-        self.mem.write(addr, n);
+        self.mem.write(addr, n)?;
         Ok(())
     }
 

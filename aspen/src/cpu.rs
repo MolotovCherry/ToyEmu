@@ -2,10 +2,10 @@ mod monitor;
 
 use std::{
     slice,
+    sync::Arc,
     time::{Duration, SystemTime},
 };
 
-use bstr::ByteSlice;
 use bytemuck::{AnyBitPattern, NoUninit};
 use log::trace;
 use strum::Display;
@@ -13,12 +13,12 @@ use yansi::Paint;
 
 use crate::{
     BitSize,
-    cpu::monitor::{Monitor, MonitorArgs},
+    cpu::monitor::Monitor,
     instruction::{Instruction, InstructionType},
-    mmu::{MemError, Memory, Prot},
+    mmu::{MemError, Mmu},
 };
 
-#[derive(Debug, Clone, thiserror::Error, PartialEq)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub enum CpuError {
     #[error("Unsupported instruction: {0:?}")]
     UnsupportedInst(Instruction),
@@ -28,8 +28,8 @@ pub enum CpuError {
     StackOverflow(u32),
     #[error("{0}")]
     Mem(#[from] MemError),
-    #[error("")]
-    Overflow,
+    #[error("{0}")]
+    MiniFb(String),
 }
 
 #[derive(Debug)]
@@ -61,7 +61,7 @@ impl Cpu {
     pub fn process(
         &mut self,
         inst: Instruction,
-        mem: &mut Memory,
+        mmu: &Arc<Mmu>,
         stop: &mut bool,
         clk: &mut u32,
     ) -> Result<(), CpuError> {
@@ -92,25 +92,27 @@ impl Cpu {
             }
 
             Pr => {
-                let low = self.gp.get_reg(inst.a);
-                let high = self.gp.get_reg(inst.b);
+                todo!()
+                // let low = self.gp.get_reg(inst.a);
+                // let high = self.gp.get_reg(inst.b);
 
-                if let Some(view) = mem.view(low..high) {
-                    let data = view.as_bstr();
-                    print!("{data}");
-                    *clk += 100;
-                }
+                // if let Some(view) = mmu.view(low..high) {
+                //     let data = view.as_bstr();
+                //     print!("{data}");
+                //     *clk += 100;
+                // }
             }
 
             Epr => {
-                let low = self.gp.get_reg(inst.a);
-                let high = self.gp.get_reg(inst.b);
+                todo!()
+                // let low = self.gp.get_reg(inst.a);
+                // let high = self.gp.get_reg(inst.b);
 
-                if let Some(view) = mem.view(low..high) {
-                    let data = view.as_bstr();
-                    eprint!("{data}");
-                    *clk += 100;
-                }
+                // if let Some(view) = mmu.view(low..high) {
+                //     let data = view.as_bstr();
+                //     eprint!("{data}");
+                //     *clk += 100;
+                // }
             }
 
             Tme => {
@@ -146,21 +148,22 @@ impl Cpu {
                         mon.stop();
                     }
                 } else {
-                    let args =
-                        MonitorArgs::from(&mem[base..base + size_of::<MonitorArgs>() as BitSize]);
-
-                    let buf_base = base + size_of::<MonitorArgs>() as BitSize;
                     match self.mon.as_mut() {
-                        None => self.mon = Some(Monitor::new(args, buf_base).unwrap()),
-                        Some(mon) => mon.update(buf_base, args),
+                        None => {
+                            self.mon = Some(
+                                Monitor::new(base, mmu.clone())
+                                    .map_err(|e| CpuError::MiniFb(e.to_string()))?,
+                            )
+                        }
+                        Some(mon) => mon.update(base),
                     }
                 }
             }
 
             Draw => {
-                let mon = self.mon.as_mut().unwrap();
-                let mem = mem.clone();
-                mon.draw(mem);
+                if let Some(mon) = self.mon.as_mut() {
+                    mon.draw();
+                }
             }
 
             Slp => {
@@ -172,7 +175,7 @@ impl Cpu {
                 };
 
                 if val > 0 {
-                    kizuna::time::u_sleep(Duration::from_micros(val));
+                    sayuri::time::u_sleep(Duration::from_micros(val));
                 }
             }
 
@@ -199,36 +202,18 @@ impl Cpu {
             //
 
             Ld => {
-                let start = get_imm_or!(inst.a);
-                let end = start
-                    .checked_add(3)
-                    .ok_or(CpuError::Overflow)?;
-
-                mem.check_prot(start..=end, Prot::Read.into())?;
-
-                let data = &mem[start..=end];
-                let val = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+                let val = mmu.read(get_imm_or!(inst.a))?;
                 self.gp.set_reg(inst.dst, val);
             }
 
             Ldw => {
-                let start = get_imm_or!(inst.a);
-                let end = start.checked_add(2).ok_or(CpuError::Overflow)?;
-
-                mem.check_prot(start..=end, Prot::Read.into())?;
-
-                let data = &mem[start..=end];
-                let val = u32::from_le_bytes([data[0], data[1], 0, 0]);
-                self.gp.set_reg(inst.dst, val);
+                let val = mmu.read::<u16>(get_imm_or!(inst.a))?;
+                self.gp.set_reg(inst.dst, val as BitSize);
             }
 
             Ldb => {
-                let start = get_imm_or!(inst.a);
-
-                mem.check_prot(start..=start, Prot::Read.into())?;
-
-                let val = u32::from_le_bytes([mem[start], 0, 0, 0]);
-                self.gp.set_reg(inst.dst, val);
+                let val = mmu.read::<u8>(get_imm_or!(inst.a))?;
+                self.gp.set_reg(inst.dst, val as BitSize);
             }
 
             Pld => {
@@ -245,36 +230,17 @@ impl Cpu {
 
             Str => {
                 let dst = self.gp.get_reg(inst.dst);
-                let end = dst.checked_add(3).ok_or(CpuError::Overflow)?;
-
-                mem.check_prot(dst..=end, Prot::Write.into())?;
-
-                loop {
-                    let Some(mem) = mem.get_mut() else { continue };
-
-                    let data = get_imm_or!(inst.a).to_le_bytes();
-                    mem[dst..=end].copy_from_slice(&data);
-                    break;
-                }
+                mmu.write(dst, get_imm_or!(inst.a))?;
             }
 
             Strw => {
                 let dst = self.gp.get_reg(inst.dst);
-                let end = dst.checked_add(1).ok_or(CpuError::Overflow)?;
-
-                mem.check_prot(dst..=end, Prot::Write.into())?;
-
-                let mem = mem.get_mut().unwrap();
-
-                let data = get_imm_or!(inst.a).to_le_bytes();
-                mem[dst..=end].copy_from_slice(&[data[0], data[1]]);
+                mmu.write(dst, get_imm_or!(inst.a) as u16)?;
             }
 
             Strb => {
                 let dst = self.gp.get_reg(inst.dst);
-                mem.check_prot(dst..=dst, Prot::Write.into())?;
-                let mem = mem.get_mut().unwrap();
-                mem[dst] = get_imm_or!(inst.a) as u8;
+                mmu.write(dst, get_imm_or!(inst.a) as u8)?;
             }
 
             Pstr => {
@@ -603,37 +569,6 @@ impl Cpu {
 
             Push => {
                 let a = self.gp.get_reg(inst.a);
-                let old_sp = self.gp.sp;
-
-                self.gp.sp = self.gp.sp.checked_sub(3).ok_or(CpuError::StackOverflow(self.pc))?;
-
-                let mem = mem.get_mut().unwrap();
-                let slice = &mut mem[self.gp.sp..=old_sp];
-
-                slice.copy_from_slice(&a.to_le_bytes());
-
-                *clk = 2;
-            }
-
-            Pop => {
-                let start = self.gp.sp;
-                let end = self
-                    .gp
-                    .sp
-                    .checked_add(3)
-                    .ok_or(CpuError::StackUnderflow(self.gp.sp))?;
-
-                let bytes = &mem[start..=end];
-                let data = BitSize::from_le_bytes(bytes.try_into().unwrap());
-                self.gp.sp = end;
-                self.gp.set_reg(inst.dst, data);
-
-                *clk = 2;
-            }
-
-            Call => {
-                // push old ra to stack
-                let old_sp = self.gp.sp;
 
                 self.gp.sp = self
                     .gp
@@ -641,8 +576,34 @@ impl Cpu {
                     .checked_sub(3)
                     .ok_or(CpuError::StackOverflow(self.pc))?;
 
-                let mem = mem.get_mut().unwrap();
-                mem[self.gp.sp..=old_sp].copy_from_slice(&self.gp.ra.to_le_bytes());
+                mmu.write_unchecked(self.gp.sp, a)?;
+
+                *clk = 2;
+            }
+
+            Pop => {
+                let data = mmu.read_unchecked(self.gp.sp)?;
+
+                self.gp.sp = self
+                    .gp
+                    .sp
+                    .checked_add(3)
+                    .ok_or(CpuError::StackUnderflow(self.gp.sp))?;
+
+                self.gp.set_reg(inst.dst, data);
+
+                *clk = 2;
+            }
+
+            Call => {
+                self.gp.sp = self
+                    .gp
+                    .sp
+                    .checked_sub(3)
+                    .ok_or(CpuError::StackOverflow(self.pc))?;
+
+                // write return address to stack
+                mmu.write_unchecked(self.gp.sp, self.gp.ra)?;
 
                 let jmp = get_imm_or!(inst.a);
 
@@ -663,19 +624,13 @@ impl Cpu {
                 // jmp to return addr
                 self.pc = self.gp.ra;
 
-                let start = self.gp.sp;
-                let end = self
+                self.gp.ra = mmu.read_unchecked(self.gp.sp)?;
+
+                self.gp.sp = self
                     .gp
                     .sp
                     .checked_add(3)
                     .ok_or(CpuError::StackUnderflow(self.gp.sp))?;
-
-                // pop old ra off stack and set it
-                let bytes = &mem[start..=end];
-                let ra = BitSize::from_le_bytes(bytes.try_into().unwrap());
-                self.gp.sp = end;
-
-                self.gp.ra = ra;
 
                 *clk = 2;
 

@@ -2,7 +2,7 @@ use std::ptr;
 use std::time::Instant;
 
 use aspen::emulator::Emulator;
-use kizuna::macros::stringify_raw;
+use sayuri::macros::stringify_raw;
 
 fn main() {
     let mut emu = Emulator::new(&[]).expect("creation to succeed");
@@ -15,19 +15,21 @@ fn main() {
             Err(e) => panic!("{e}"),
         };
 
-        let mem = emu.mem.get_mut().unwrap();
-        mem.zeroize().expect("zeroize to succeed");
+        unsafe {
+            emu.mmu.zeroize().expect("zeroize to succeed");
+        }
 
         // prefault the pages to test the emulator's performance,
         // not the os's lazy alloc overhead
         //
         // TODO: for linux, use MAP_POPULATE
-        for b in mem
-            .data_mut()
-            .iter_mut()
-            .step_by(4096 /* min page size on modern oses */)
-        {
-            unsafe {
+        unsafe {
+            for b in emu
+                .mmu
+                .mem_mut()
+                .iter_mut()
+                .step_by(4096 /* min page size on modern oses */)
+            {
                 ptr::write_volatile(b, 1);
                 ptr::write_volatile(b, 0);
             }

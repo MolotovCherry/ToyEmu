@@ -1,4 +1,5 @@
 use std::{
+    arch::asm,
     ffi::c_void,
     marker::PhantomData,
     slice,
@@ -97,52 +98,111 @@ impl Memory {
         Ok(this)
     }
 
+    fn slice(&self, addr: impl Into<AddressRange>) -> &[AtomicU8] {
+        let addr = addr.into();
+
+        // SAFETY: addr is limited to BitSize, alloc is BitSize::MAX big
+        // so it's within the alloc. Also, BitSize < isize::MAX (see assert above)
+        const { assert!((BitSize::MAX as usize) <= isize::MAX as usize) }
+        let ptr = unsafe { self.data.cast::<AtomicU8>().add(addr.start as usize) };
+
+        // do not wraparound since that would pointlessly cause a massive slice
+        let len = addr.end.saturating_sub(addr.start.saturating_sub(1));
+
+        unsafe { slice::from_raw_parts(ptr, len as usize) }
+    }
+
     /// Write to an address.
-    pub fn write<N: Copy + ToBytes>(&self, addr: BitSize, val: N) {
+    pub fn write<N: Copy + ToBytes>(&self, addr: BitSize, val: N) -> Result<(), MemError> {
         let mut buf = N::Buf::default();
         val.to_le_bytes(&mut buf);
 
-        let base_ptr = unsafe { self.data.cast::<AtomicU8>().add(addr as usize) };
-        let slice = unsafe { slice::from_raw_parts(base_ptr, size_of::<N>()) };
+        // 0 is inclusive and 0+size-1 is also inclusive, so sub 1 is important here for the overflow check
+        let end = addr
+            .checked_add((size_of::<N>() as BitSize).saturating_sub(1))
+            .ok_or(MemError::Overflow)?;
 
-        for (a, v) in slice.iter().zip(buf) {
+        let data = self.slice(addr..=end);
+
+        for (a, v) in data.iter().zip(buf) {
             a.store(v, Ordering::Relaxed);
         }
+
+        Ok(())
     }
 
     /// Read an address.
-    pub fn read<N: FromBytes>(&self, addr: BitSize) -> N {
-        let base_ptr = unsafe { self.data.cast::<AtomicU8>().add(addr as usize) };
-        let data = unsafe { slice::from_raw_parts(base_ptr, size_of::<N>()) };
+    pub fn read<N: FromBytes>(&self, addr: BitSize) -> Result<N, MemError> {
+        let end = addr
+            .checked_add((size_of::<N>() as BitSize).saturating_sub(1))
+            .ok_or(MemError::Overflow)?;
+
+        let data = self.slice(addr..=end);
 
         let mut buf = N::Buf::default();
         N::copy_from_atomic_slice(&mut buf, data);
 
-        N::from_le_bytes(&buf)
+        let n = N::from_le_bytes(&buf);
+        Ok(n)
     }
 
-    /// Returns a shared slice.
-    ///
-    /// # Safety
-    ///
-    /// While slice exists, reads are permitted, but
-    /// writes/view mut to this address range are not allowed
-    pub unsafe fn view(&self, addr: impl Into<AddressRange>) -> &[u8] {
-        let addr = addr.into();
-        let ptr = unsafe { self.data.add(addr.start as usize).cast::<u8>() };
-        unsafe { slice::from_raw_parts(ptr, addr.end.saturating_sub(addr.start) as usize) }
+    /// Starting at addr, copies buf.len bytes into buf
+    pub fn memcpy(&self, addr: BitSize, buf: &mut [u8]) -> Result<(), MemError> {
+        let end = addr
+            .checked_add(buf.len().saturating_sub(1) as _)
+            .ok_or(MemError::Overflow)?;
+
+        let data = self.slice(addr..=end);
+
+        if cfg!(target_arch = "x86_64") {
+            unsafe {
+                asm!(
+                    "rep movsb",
+                    inout("rcx") buf.len() =>  _,
+                    inout("rsi") data.as_ptr() =>  _,
+                    inout("rdi") buf.as_mut_ptr() =>  _,
+                    options(nostack, preserves_flags)
+                )
+            }
+        } else {
+            for (a, b) in data.iter().zip(buf) {
+                *b = a.load(Ordering::Relaxed);
+            }
+        }
+
+        Ok(())
     }
 
-    /// Returns a unique slice.
+    /// Write to mem using memcpy
+    pub fn memwrite(&self, addr: BitSize, buf: &[u8]) -> Result<(), MemError> {
+        let end = addr
+            .checked_add(buf.len().saturating_sub(1) as _)
+            .ok_or(MemError::Overflow)?;
+
+        let data = self.slice(addr..=end);
+
+        for (a, b) in data.iter().zip(buf) {
+            a.store(*b, Ordering::Relaxed);
+        }
+
+        Ok(())
+    }
+
+    /// Access raw mem
     ///
     /// # Safety
+    /// No read or writes of any kind are allowed while this slice is alive
+    pub unsafe fn mem(&self) -> &[u8; MEM_SIZE] {
+        unsafe { &*self.data.cast() }
+    }
+
+    /// Access raw mutable mem
     ///
-    /// While slice exists, no reads, writes, or view mut are permitted.
-    /// This must remain the only sole unique access
-    pub unsafe fn view_mut(&self, addr: impl Into<AddressRange>) -> &mut [u8] {
-        let addr = addr.into();
-        let ptr = unsafe { self.data.add(addr.start as usize).cast::<u8>() };
-        unsafe { slice::from_raw_parts_mut(ptr, addr.end.saturating_sub(addr.start) as usize) }
+    /// # Safety
+    /// No read or writes of any kind are allowed while this slice is alive
+    #[allow(clippy::mut_from_ref)]
+    pub unsafe fn mem_mut(&self) -> &mut [u8; MEM_SIZE] {
+        unsafe { &mut *self.data.cast() }
     }
 
     /// Zeroes memory

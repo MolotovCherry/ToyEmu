@@ -9,9 +9,9 @@ use yansi::Paint as _;
 use crate::BitSize;
 use crate::cpu::{Cpu, CpuError};
 use crate::instruction::{InstError, Instruction};
-use crate::mmu::{MemError, Mmu, Prot};
+use crate::mmu::{MemError, Mmu, PAGE_SIZE, Prot};
 
-#[derive(Debug, Clone, thiserror::Error, PartialEq)]
+#[derive(Debug, thiserror::Error, PartialEq)]
 pub enum EmuError {
     #[error("{0}")]
     Mem(#[from] MemError),
@@ -31,23 +31,25 @@ pub struct Emulator {
 
 impl Emulator {
     pub fn new(program: &[u8]) -> Result<Self, EmuError> {
-        let mut this = Self {
+        let this = Self {
             cpu: Cpu::new(),
             mmu: Arc::new(Mmu::new()?),
         };
 
         this.write_program(program)?;
 
+        let next_page = program.len().next_multiple_of(PAGE_SIZE);
+        this.mmu
+            .set_prot(next_page as BitSize.., Prot::Read | Prot::Write);
+
         Ok(this)
     }
 
-    pub fn write_program(&mut self, program: &[u8]) -> Result<(), MemError> {
-        let mem = self.mmu.get_mut().unwrap();
-
+    pub fn write_program(&self, program: &[u8]) -> Result<(), MemError> {
         let len = program.len() as BitSize;
-        mem[..len].copy_from_slice(program);
+        self.mmu.memwrite(0, program)?;
         let size = len.next_multiple_of(PAGE_SIZE as BitSize);
-        mem.change_prot(..size, Prot::Execute | Prot::Read)?;
+        self.mmu.set_prot(..size, Prot::Execute | Prot::Read);
 
         Ok(())
     }
@@ -59,7 +61,7 @@ impl Emulator {
             let mut clk = 1u32;
             let inst = self.next_inst()?;
 
-            if let Err(e) = self.mmu.check_prot(self.cpu.pc, Prot::Execute.into()) {
+            if let Err(e) = self.mmu.check_prot(self.cpu.pc, Prot::Execute) {
                 return Err(EmuError::PageFault(e, self.cpu.pc));
             }
 
@@ -72,7 +74,7 @@ impl Emulator {
                 trace(self.cpu.pc, &inst);
             }
 
-            self.cpu.process(inst, &mut self.mmu, &mut stop, &mut clk)?;
+            self.cpu.process(inst, &self.mmu, &mut stop, &mut clk)?;
 
             #[rustfmt::skip]
             if stop { break; };
@@ -84,9 +86,10 @@ impl Emulator {
         Ok(())
     }
 
-    fn next_inst(&self) -> Result<Instruction, InstError> {
-        let view = &self.mmu[self.cpu.pc..];
-        let i = Instruction::from_slice(view)?;
+    fn next_inst(&self) -> Result<Instruction, EmuError> {
+        let mut buf = [0u8; 8];
+        self.mmu.memcpy(self.cpu.pc, &mut buf)?;
+        let i = Instruction::from_buf(buf)?;
 
         Ok(i)
     }

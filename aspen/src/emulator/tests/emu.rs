@@ -32,11 +32,14 @@ impl Drop for EmuGuard<'_> {
         // mem dirty flag
         let dirty = self.1;
         // skip mem resetting if there's nothing to reset, to save on processing
-        let mem = self.mmu.get_mut().unwrap();
+
         if dirty {
-            mem.zeroize().expect("zeroize to succeed");
+            unsafe {
+                self.mmu.zeroize().expect("zeroize to succeed");
+            }
         }
-        mem.change_prot(.., Prot::Read | Prot::Write).unwrap();
+
+        self.mmu.set_prot(.., Prot::Read | Prot::Write);
     }
 }
 

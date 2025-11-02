@@ -20,8 +20,6 @@ use crate::{BitSize, cpu::Reg};
 
 #[derive(Debug, Copy, Clone, thiserror::Error, PartialEq)]
 pub enum InstError {
-    #[error("Incorrect instruction size: {0}")]
-    WrongSize(usize),
     #[error("Unknown opcode: {0} {0}")]
     UnknownInstruction(u8, u8),
 }
@@ -41,15 +39,7 @@ pub struct Instruction {
 }
 
 impl Instruction {
-    pub fn from_slice(inst: &[u8]) -> Result<Self, InstError> {
-        // note: slice comes in unbounded on the right side
-        // slice it to possible full instruction length
-        let inst = &inst[..inst.len().min(8)];
-
-        if inst.len() < 4 {
-            return Err(InstError::WrongSize(inst.len()));
-        }
-
+    pub fn from_buf(inst: [u8; 8]) -> Result<Self, InstError> {
         let ctrl = inst[0];
         let opcode = inst[1];
         let a = Reg::from(inst[2]);
@@ -67,18 +57,13 @@ impl Instruction {
 
         // imm is in LE
         let imm = if has_imm {
-            if inst.len() < 8 {
-                return Err(InstError::WrongSize(inst.len()));
-            }
-
-            let [c_, d_, e_, f_] = inst[4..8].try_into().unwrap();
-            let imm = BitSize::from_le_bytes([c_, d_, e_, f_]);
+            let imm = BitSize::from_le_bytes([inst[4], inst[5], inst[6], inst[7]]);
 
             // we only need 5 bits to guarantee the reg size
-            c = Reg::from(c_);
-            d = Reg::from(d_);
-            e = Reg::from(e_);
-            f = Reg::from(f_);
+            c = Reg::from(inst[4]);
+            d = Reg::from(inst[5]);
+            e = Reg::from(inst[6]);
+            f = Reg::from(inst[7]);
 
             imm
         } else {
