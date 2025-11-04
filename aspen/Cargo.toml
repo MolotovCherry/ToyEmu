@@ -14,6 +14,7 @@ yansi = "1.0.1"
 enumflags2 = "0.7.12"
 minifb = "0.28.0"
 sayuri = "0.1.2"
+memmap2 = "0.9.9"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = ["Win32_System_Memory"] }

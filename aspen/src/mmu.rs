@@ -175,14 +175,14 @@ impl Mmu {
 
     // Read with protection check
     pub fn read<N: FromBytes>(&self, addr: BitSize) -> Result<N, MemError> {
-        self.check_prot(addr, Prot::Read)?;
+        //self.check_prot(addr, Prot::Read)?;
         let n = self.mem.read(addr)?;
         Ok(n)
     }
 
     /// Write with protection check
     pub fn write<N: Copy + ToBytes>(&self, addr: BitSize, n: N) -> Result<(), MemError> {
-        self.check_prot(addr, Prot::Write)?;
+        //self.check_prot(addr, Prot::Write)?;
         self.mem.write(addr, n)?;
         Ok(())
     }

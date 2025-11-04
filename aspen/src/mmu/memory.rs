@@ -1,5 +1,4 @@
 use std::{
-    arch::asm,
     ffi::c_void,
     marker::PhantomData,
     slice,
@@ -154,20 +153,8 @@ impl Memory {
 
         let data = self.slice(addr..=end);
 
-        if cfg!(target_arch = "x86_64") {
-            unsafe {
-                asm!(
-                    "rep movsb",
-                    inout("rcx") buf.len() =>  _,
-                    inout("rsi") data.as_ptr() =>  _,
-                    inout("rdi") buf.as_mut_ptr() =>  _,
-                    options(nostack, preserves_flags)
-                )
-            }
-        } else {
-            for (a, b) in data.iter().zip(buf) {
-                *b = a.load(Ordering::Relaxed);
-            }
+        for (a, b) in data.iter().zip(buf) {
+            *b = a.load(Ordering::Relaxed);
         }
 
         Ok(())

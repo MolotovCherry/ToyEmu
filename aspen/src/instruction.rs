@@ -247,7 +247,7 @@ impl_inst! {
     (0, 0x04) => Tme [A, B, C, D]
     (0, 0x05) => Rdpc [Dst]
     (0, 0x06) => Kbrd [Dst]
-    (0, 0x07) => Setgfx [A] [Imm]
+    (0, 0x07) => Gfx
     (0, 0x08) => Draw
     (0, 0x09) => Slp [A, B] [Imm]
     (0, 0x0a) => Rdclk [A, B]

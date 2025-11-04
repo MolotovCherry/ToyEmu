@@ -140,7 +140,7 @@ impl Cpu {
                 unimplemented!();
             }
 
-            Setgfx => {
+            Gfx => {
                 let width = self.gp.t0;
                 let height = self.gp.t1;
                 let fps = self.gp.t2;
