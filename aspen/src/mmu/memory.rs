@@ -1,5 +1,4 @@
 use std::{
-    arch::asm,
     ffi::c_void,
     marker::PhantomData,
     slice,
@@ -154,20 +153,8 @@ impl Memory {
 
         let data = self.slice(addr..=end);
 
-        if cfg!(target_arch = "x86_64") {
-            unsafe {
-                asm!(
-                    "rep movsb",
-                    inout("rcx") buf.len() =>  _,
-                    inout("rsi") data.as_ptr() =>  _,
-                    inout("rdi") buf.as_mut_ptr() =>  _,
-                    options(nostack, preserves_flags)
-                )
-            }
-        } else {
-            for (a, b) in data.iter().zip(buf) {
-                *b = a.load(Ordering::Relaxed);
-            }
+        for (a, b) in data.iter().zip(buf) {
+            *b = a.load(Ordering::Relaxed);
         }
 
         Ok(())
@@ -183,6 +170,25 @@ impl Memory {
 
         for (a, b) in data.iter().zip(buf) {
             a.store(*b, Ordering::Relaxed);
+        }
+
+        Ok(())
+    }
+
+    /// Write val N to mem C times starting at addr
+    pub fn memset(&self, addr: BitSize, val: BitSize, count: BitSize) -> Result<(), MemError> {
+        let end = addr
+            .checked_add(count.saturating_sub(1) as _)
+            .ok_or(MemError::Overflow)?;
+
+        let data = self.slice(addr..=end);
+
+        let val = val.to_le_bytes();
+
+        for a in data.chunks(4) {
+            for (a, v) in a.iter().zip(val) {
+                a.store(v, Ordering::Relaxed);
+            }
         }
 
         Ok(())

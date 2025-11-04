@@ -140,7 +140,7 @@ impl Cpu {
                 unimplemented!();
             }
 
-            Setgfx => {
+            Gfx => {
                 let width = self.gp.t0;
                 let height = self.gp.t1;
                 let fps = self.gp.t2;
@@ -201,6 +201,13 @@ impl Cpu {
                     inst.a.bright_magenta(),
                     format_args!("0x{:0>8x}", self.gp.get_reg(inst.a)).bright_yellow()
                 );
+            }
+
+            Smem => {
+                let val = get_imm_or!(inst.a);
+                let count = self.gp.get_reg(inst.b);
+                let dst = self.gp.get_reg(inst.dst);
+                mmu.memset(dst, val, count)?;
             }
 
             #[rustfmt::skip]

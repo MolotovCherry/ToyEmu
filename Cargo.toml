@@ -5,5 +5,10 @@ members = ["graft", "aspen", "bmark"]
 [profile.release]
 lto = true
 
+[profile.release-dbg]
+inherits = "release"
+lto = true
+debug = true
+
 [profile.dev]
 opt-level = 1

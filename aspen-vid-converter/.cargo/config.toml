@@ -1,0 +1,3 @@
+[env]
+FFMPEG_DIR = { value = "ffmpeg", relative = true }
+PATH = { value = "ffmpeg/bin", relative = true }

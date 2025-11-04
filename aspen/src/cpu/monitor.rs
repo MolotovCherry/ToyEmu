@@ -71,11 +71,11 @@ impl Monitor {
                         let vram_slice = bytemuck::must_cast_slice_mut::<_, u8>(&mut vram);
                         mmu.memcpy(addr, vram_slice).unwrap();
 
+                        reply_tx.send(Command::Finished).unwrap();
+
                         window
                             .update_with_buffer(&vram, args.width as usize, args.height as usize)
                             .unwrap();
-
-                        reply_tx.send(Command::Finished).unwrap();
                     }
 
                     ReqCommand::Stop => break,
