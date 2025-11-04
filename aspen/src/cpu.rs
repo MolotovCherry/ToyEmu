@@ -203,6 +203,13 @@ impl Cpu {
                 );
             }
 
+            Smem => {
+                let val = get_imm_or!(inst.a);
+                let count = self.gp.get_reg(inst.b);
+                let dst = self.gp.get_reg(inst.dst);
+                mmu.memset(dst, val, count)?;
+            }
+
             #[rustfmt::skip]
             //
             // Memory

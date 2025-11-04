@@ -43,7 +43,7 @@ impl Emulator {
         this.mmu
             .set_prot(next_page as BitSize.., Prot::Read | Prot::Write);
 
-        let file = std::fs::File::open(r"R:\build\rust\adsf\new.bin").unwrap();
+        let file = std::fs::File::open(r"R:\build\asdf\new.bin").unwrap();
 
         let mmap = unsafe { Mmap::map(&file).unwrap() };
 
