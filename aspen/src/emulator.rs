@@ -4,7 +4,6 @@ mod tests;
 use std::sync::Arc;
 
 use log::{Level, trace};
-use memmap2::Mmap;
 use yansi::Paint as _;
 
 use crate::BitSize;
@@ -42,12 +41,6 @@ impl Emulator {
         let next_page = program.len().next_multiple_of(PAGE_SIZE);
         this.mmu
             .set_prot(next_page as BitSize.., Prot::Read | Prot::Write);
-
-        let file = std::fs::File::open(r"new.bin").unwrap();
-
-        let mmap = unsafe { Mmap::map(&file).unwrap() };
-
-        this.mmu.memwrite(0x2800, &mmap).unwrap();
 
         Ok(this)
     }

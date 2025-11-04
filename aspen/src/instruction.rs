@@ -252,6 +252,7 @@ impl_inst! {
     (0, 0x09) => Slp [A, B] [Imm]
     (0, 0x0a) => Rdclk [A, B]
     (0, 0x0b) => Dbg [A]
+    (0, 0x0c) => Smem [Brackets, Dst, A, B] [Brackets, Dst, A, Imm]
 
     // Memory
     (0, 0x20) => Ld [Dst, Brackets, A] [Dst, Brackets, Imm]

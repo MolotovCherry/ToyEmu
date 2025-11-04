@@ -135,6 +135,9 @@
 
     dbg {a: register} => (0`2 @ 0b0 @ 0`5) @ 0x0b @ a @ 0x00
 
+    smem [{d: register}], {c: register}, {a: register} => (0`2 @ 0b0 @ d`5) @ 0x0c @ a @ c
+    smem [{d: register}], {c: register}, {i: immediate} => (0`2 @ 0b0 @ d`5) @ 0x0c @ 0x00 @ c @ i
+
     ; ld mem
 
     ld {d: register}, [{a: register}] =>

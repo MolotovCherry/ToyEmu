@@ -178,6 +178,25 @@ impl Memory {
         Ok(())
     }
 
+    /// Write val N to mem C times starting at addr
+    pub fn memset(&self, addr: BitSize, val: BitSize, count: BitSize) -> Result<(), MemError> {
+        let end = addr
+            .checked_add(count.saturating_sub(1) as _)
+            .ok_or(MemError::Overflow)?;
+
+        let data = self.slice(addr..=end);
+
+        let val = val.to_le_bytes();
+
+        for a in data.chunks(4) {
+            for (a, v) in a.iter().zip(val) {
+                a.store(v, Ordering::Relaxed);
+            }
+        }
+
+        Ok(())
+    }
+
     /// Access raw mem
     ///
     /// # Safety

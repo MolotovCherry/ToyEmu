@@ -161,6 +161,10 @@ impl Mmu {
         self.mem.memwrite(addr, buf)
     }
 
+    pub fn memset(&self, addr: BitSize, val: BitSize, count: BitSize) -> Result<(), MemError> {
+        self.mem.memset(addr, val, count)
+    }
+
     /// Read, but don't check protection
     pub fn read_unchecked<N: FromBytes>(&self, addr: BitSize) -> Result<N, MemError> {
         let n = self.mem.read(addr)?;
@@ -175,14 +179,14 @@ impl Mmu {
 
     // Read with protection check
     pub fn read<N: FromBytes>(&self, addr: BitSize) -> Result<N, MemError> {
-        //self.check_prot(addr, Prot::Read)?;
+        self.check_prot(addr, Prot::Read)?;
         let n = self.mem.read(addr)?;
         Ok(n)
     }
 
     /// Write with protection check
     pub fn write<N: Copy + ToBytes>(&self, addr: BitSize, n: N) -> Result<(), MemError> {
-        //self.check_prot(addr, Prot::Write)?;
+        self.check_prot(addr, Prot::Write)?;
         self.mem.write(addr, n)?;
         Ok(())
     }
