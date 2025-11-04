@@ -1,11 +1,8 @@
-use std::{
-    ffi::c_void,
-    marker::PhantomData,
-    slice,
-    sync::atomic::{AtomicU8, Ordering},
-};
+use std::{ffi::c_void, slice, sync::atomic::AtomicU8};
 
-#[cfg(windows)]
+#[cfg(unix)]
+use std::sync::Arc;
+
 use crate::mmu::MemError;
 use crate::{
     BitSize,
@@ -15,9 +12,10 @@ use crate::{
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct Memory {
-    data: *mut [AtomicU8; MEM_SIZE],
-    phantom: PhantomData<Box<[AtomicU8; MEM_SIZE]>>,
+    data: *mut [u8; MEM_SIZE],
 }
+
+const _: () = assert!(align_of::<AtomicU8>() == align_of::<u8>());
 
 // We exclusively own and manage the memory
 unsafe impl Send for Memory {}
@@ -53,7 +51,6 @@ impl Memory {
         // therefore this cast is valid
         let this = Self {
             data: ptr.cast::<[_; MEM_SIZE]>(),
-            phantom: PhantomData,
         };
 
         Ok(this)
@@ -62,9 +59,8 @@ impl Memory {
     #[cfg(unix)]
     pub fn new() -> Result<Self, MemError> {
         use core::ptr::addr_eq;
-        use core::{mem::transmute, ptr::null_mut};
+        use core::ptr::null_mut;
         use libc::{MAP_ANONYMOUS, MAP_FAILED, MAP_PRIVATE, PROT_READ, PROT_WRITE, mmap};
-        use std::os::fd::BorrowedFd;
 
         const INVALID_FD: i32 = -1;
 
@@ -91,7 +87,6 @@ impl Memory {
         // therefore this cast is valid
         let this = Self {
             data: ptr.cast::<[_; MEM_SIZE]>(),
-            phantom: PhantomData,
         };
 
         Ok(this)
@@ -121,11 +116,9 @@ impl Memory {
             .checked_add((size_of::<N>() as BitSize).saturating_sub(1))
             .ok_or(MemError::Overflow)?;
 
-        let data = self.slice(addr..=end);
+        let data = self.slice(addr..=end).as_ptr().cast_mut().cast();
 
-        for (a, v) in data.iter().zip(buf) {
-            a.store(v, Ordering::Relaxed);
-        }
+        unsafe { *data = buf };
 
         Ok(())
     }
@@ -136,12 +129,10 @@ impl Memory {
             .checked_add((size_of::<N>() as BitSize).saturating_sub(1))
             .ok_or(MemError::Overflow)?;
 
-        let data = self.slice(addr..=end);
-
-        let mut buf = N::Buf::default();
-        N::copy_from_atomic_slice(&mut buf, data);
-
+        let data = self.slice(addr..=end).as_ptr().cast();
+        let buf = unsafe { *data };
         let n = N::from_le_bytes(&buf);
+
         Ok(n)
     }
 
@@ -153,8 +144,19 @@ impl Memory {
 
         let data = self.slice(addr..=end);
 
-        for (a, b) in data.iter().zip(buf) {
-            *b = a.load(Ordering::Relaxed);
+        if cfg!(target_arch = "x86_64") {
+            unsafe {
+                std::arch::asm!(
+                    "rep movsb",
+                    inout("rcx") buf.len() =>  _,
+                    inout("rsi") data.as_ptr() =>  _,
+                    inout("rdi") buf.as_mut_ptr() =>  _,
+                    options(nostack, preserves_flags)
+                )
+            }
+        } else {
+            todo!();
+            // need to defer to asm
         }
 
         Ok(())
@@ -166,10 +168,11 @@ impl Memory {
             .checked_add(buf.len().saturating_sub(1) as _)
             .ok_or(MemError::Overflow)?;
 
-        let data = self.slice(addr..=end);
+        let data = self.slice(addr..=end).as_ptr().cast_mut().cast();
 
-        for (a, b) in data.iter().zip(buf) {
-            a.store(*b, Ordering::Relaxed);
+        unsafe {
+            // TODO: need to defer to asm
+            std::ptr::copy_nonoverlapping(buf.as_ptr(), data, buf.len());
         }
 
         Ok(())
@@ -240,7 +243,7 @@ impl Memory {
     ///
     /// No other reads/writes must be happening, or views can exist, until this is finished
     #[cfg(unix)]
-    pub unsafe fn zeroize(&mut self) -> Result<(), MemError> {
+    pub unsafe fn zeroize(&self) -> Result<(), MemError> {
         let ptr = self.data.cast::<c_void>();
 
         // SAFETY:
@@ -283,7 +286,7 @@ impl Drop for Memory {
 }
 
 pub trait ToBytes {
-    type Buf: Default + IntoIterator<Item = u8>;
+    type Buf: Copy + Default + IntoIterator<Item = u8>;
 
     fn to_ne_bytes(self, buf: &mut Self::Buf);
     fn to_le_bytes(self, buf: &mut Self::Buf);
@@ -315,10 +318,28 @@ macro_rules! impl_to_bytes {
 
 impl_to_bytes! { u8 i8 u16 i16 u32 i32 u64 i64 u128 i128 usize isize f32 f64 }
 
-pub trait FromBytes {
-    type Buf: Default;
+impl<const N: usize> ToBytes for [u8; N]
+where
+    Self: Default,
+{
+    type Buf = Self;
 
-    fn copy_from_atomic_slice(buf: &mut Self::Buf, data: &[AtomicU8]);
+    fn to_ne_bytes(self, buf: &mut Self::Buf) {
+        *buf = self;
+    }
+
+    fn to_le_bytes(self, buf: &mut Self::Buf) {
+        *buf = self;
+    }
+
+    fn to_be_bytes(self, buf: &mut Self::Buf) {
+        *buf = self;
+    }
+}
+
+pub trait FromBytes {
+    // TODO: require this to be a `[u8; N]` otherwise it's not sound for user impls
+    type Buf: Copy + Default;
 
     fn from_ne_bytes(buf: &Self::Buf) -> Self;
     fn from_le_bytes(buf: &Self::Buf) -> Self;
@@ -329,12 +350,6 @@ macro_rules! impl_from_bytes {
     ($($ty:ident)+) => ($(
         impl FromBytes for $ty {
             type Buf = [u8; size_of::<Self>()];
-
-            fn copy_from_atomic_slice(buf: &mut Self::Buf, data: &[AtomicU8]) {
-                for (buf_byte, byte) in buf.iter_mut().zip(data) {
-                    *buf_byte = byte.load(Ordering::Relaxed);
-                }
-            }
 
             fn from_ne_bytes(buf: &Self::Buf) -> Self {
                 Self::from_ne_bytes(*buf)
@@ -352,3 +367,22 @@ macro_rules! impl_from_bytes {
 }
 
 impl_from_bytes! { u8 i8 u16 i16 u32 i32 u64 i64 u128 i128 usize isize f32 f64 }
+
+impl<const N: usize> FromBytes for [u8; N]
+where
+    Self: Default,
+{
+    type Buf = Self;
+
+    fn from_ne_bytes(buf: &Self::Buf) -> Self {
+        *buf
+    }
+
+    fn from_le_bytes(buf: &Self::Buf) -> Self {
+        *buf
+    }
+
+    fn from_be_bytes(buf: &Self::Buf) -> Self {
+        *buf
+    }
+}

@@ -18,7 +18,7 @@ use crate::{
     mmu::{MemError, Mmu},
 };
 
-#[derive(Debug, thiserror::Error, PartialEq)]
+#[derive(Debug, thiserror::Error)]
 pub enum CpuError {
     #[error("Unsupported instruction: {0:?}")]
     UnsupportedInst(Instruction),

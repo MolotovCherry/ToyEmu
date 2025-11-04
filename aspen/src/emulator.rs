@@ -12,7 +12,7 @@ use crate::cpu::{Cpu, CpuError};
 use crate::instruction::{InstError, Instruction};
 use crate::mmu::{MemError, Mmu, PAGE_SIZE, Prot};
 
-#[derive(Debug, thiserror::Error, PartialEq)]
+#[derive(Debug, thiserror::Error)]
 pub enum EmuError {
     #[error("{0}")]
     Mem(#[from] MemError),
@@ -43,7 +43,7 @@ impl Emulator {
         this.mmu
             .set_prot(next_page as BitSize.., Prot::Read | Prot::Write);
 
-        let file = std::fs::File::open(r"R:\build\rust\adsf\new.bin").unwrap();
+        let file = std::fs::File::open(r"new.bin").unwrap();
 
         let mmap = unsafe { Mmap::map(&file).unwrap() };
 
@@ -94,8 +94,7 @@ impl Emulator {
     }
 
     fn next_inst(&self) -> Result<Instruction, EmuError> {
-        let mut buf = [0u8; 8];
-        self.mmu.memcpy(self.cpu.pc, &mut buf)?;
+        let buf = self.mmu.read(self.cpu.pc)?;
         let i = Instruction::from_buf(buf)?;
 
         Ok(i)
