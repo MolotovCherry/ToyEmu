@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["graft", "aspen", "bmark"]
+exclude = ["aspen-vid-converter"]
 
 [profile.release]
 lto = true
