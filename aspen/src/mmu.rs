@@ -27,7 +27,7 @@ macro_rules! page_idx {
     ($addr:ident) => {{ ($addr / PAGE_SIZE as u32) as usize }};
 }
 
-#[derive(Debug, Clone, thiserror::Error, PartialEq)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum MemError {
     #[error("Page fault: {0} access denied")]
     PageFault(Protection),
